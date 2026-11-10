@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>列车秘境 · 本地预览（模拟抖音环境）</title>
+  <style>
+    html, body { margin: 0; padding: 0; background: #05090C; overflow: hidden; }
+    canvas { display: block; margin: 0 auto; }
+    #diag {
+      position: fixed; left: 0; bottom: 0; color: #4a8; font: 11px monospace;
+      background: rgba(0,0,0,0.6); padding: 2px 6px; pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+<script>
+(function () {
+  /**
+   * 本地预览：注入一个假的 tt 对象，让游戏跑「抖音分支」而不是 DOM 分支。
+   * 这样预览的就是真机上会走的代码路径。
+   *
+   * URL 参数：
+   *   w / h        逻辑宽高，默认 390 × 844
+   *   scene=train  直接进主城
+   *   demo=1       自动开一局
+   *   modal=battle|enhance|shop|event|summary
+   */
+  var q = new URLSearchParams(location.search);
+  var W = parseInt(q.get("w"), 10) || 390;
+  var H = parseInt(q.get("h"), 10) || 844;
+
+  var store = {};
+  var touchHandlers = { start: [], move: [], end: [], cancel: [] };
+
+  window.tt = {
+    getSystemInfoSync: function () {
+      return {
+        screenWidth: W,
+        screenHeight: H,
+        windowWidth: W,
+        windowHeight: H,
+        pixelRatio: 2,
+        safeArea: { top: Math.round(H * 0.055), left: 0, right: W, bottom: H }
+      };
+    },
+    createCanvas: function () {
+      var canvas = document.createElement("canvas");
+      document.body.appendChild(canvas);
+      return canvas;
+    },
+    getStorageSync: function (key) { return store[key] === undefined ? "" : store[key]; },
+    setStorageSync: function (key, value) { store[key] = value; },
+    removeStorageSync: function (key) { delete store[key]; },
+    onTouchStart: function (fn) { touchHandlers.start.push(fn); },
+    onTouchMove: function (fn) { touchHandlers.move.push(fn); },
+    onTouchEnd: function (fn) { touchHandlers.end.push(fn); },
+    onTouchCancel: function (fn) { touchHandlers.cancel.push(fn); },
+    onHide: function () {},
+    onShow: function () {},
+    onWindowResize: function () {},
+    vibrateShort: function () {},
+    showShareMenu: function () {},
+    onShareAppMessage: function () {},
+    shareAppMessage: function (opts) { if (opts && opts.success) opts.success(); },
+    reportError: function (payload) { console.warn("[tt.reportError]", payload && payload.msg); }
+  };
+
+  // 把 DOM 触摸事件转给 tt 的 handler，让点击能真的走过去
+  function dispatchTouch(list, x, y) {
+    list.forEach(function (fn) {
+      fn({ touches: [{ clientX: x, clientY: y }], changedTouches: [{ clientX: x, clientY: y }] });
+    });
+  }
+
+  window.addEventListener("mousedown", function (e) {
+    dispatchTouch(touchHandlers.start, e.clientX, e.clientY);
+  });
+  window.addEventListener("mouseup", function (e) {
+    dispatchTouch(touchHandlers.end, e.clientX, e.clientY);
+  });
+
+  window.__TM_TEST__ = {};
+  window.onerror = function (message, source, line) {
+    var box = document.createElement("div");
+    box.id = "diag";
+    box.style.color = "#f88";
+    box.textContent = message + " @ " + String(source).split("/").pop() + ":" + line;
+    document.body.appendChild(box);
+  };
+})();
+</script>
+<script src="./preview-bundle.js"></script>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  window.__TM_LOAD__(window.__TM_ENTRY__);
+
+  var T = window.__TM_TEST__;
+  var state = T.getState();
+  var app = T.app;
+  var load = window.__TM_LOAD__;
+  var changed = false;
+
+  function go(id) { T.dispatch({ id: id }); changed = true; }
+
+  var scene = q.get("scene");
+  var modal = q.get("modal");
+  var demo = q.get("demo");
+
+  if (demo === "1" || scene === "route" || modal) {
+    state.player.ether = 128;
+    state.player.gold = 6;
+    go("home:enter");
+    go("train:depart");
+    // 往前走两层，让路线图有进度
+    var map = load("js/game/map.js");
+    var rounds = parseInt(q.get("advance"), 10);
+    if (isNaN(rounds)) rounds = 2;
+    for (var i = 0; i < rounds; i += 1) {
+      var nodes = map.available(state.run.layers, state.run.currentNodeId);
+      if (!nodes.length) break;
+      var pickNode = nodes[0];
+      for (var n = 0; n < nodes.length; n += 1) {
+        if (nodes[n].type === "battle" || nodes[n].type === "elite") { pickNode = nodes[n]; break; }
+      }
+      T.dispatch({ id: "route:node:" + pickNode.id });
+      state.run.battle = null;
+      state.current.modal = null;
+      state.run.pendingEnhancements = null;
+      state.run.pendingRelicId = null;
+      state.run.eventId = null;
+      state.run.eventResult = null;
+    }
+    // 给一点构筑，让界面有内容
+    var relics = load("js/game/data/relics.js");
+    var stateApi = load("js/game/state.js");
+    if (state.run.relics.length === 0) {
+      stateApi.obtainRelic(state, relics.getById("oldMagazine"));
+      stateApi.openEnhance(state, 3);
+      stateApi.chooseEnhancement(state, state.run.pendingEnhancements[0].id);
+      stateApi.openEnhance(state, 3);
+      stateApi.chooseEnhancement(state, state.run.pendingEnhancements[0].id);
+      state.current.modal = null;
+    }
+    changed = true;
+  }
+
+  if (scene === "train") {
+    go("home:enter");
+  }
+
+  if (modal === "battle") {
+    var map2 = load("js/game/map.js");
+    var avail = map2.available(state.run.layers, state.run.currentNodeId);
+    var target = null;
+    for (var k = 0; k < avail.length; k += 1) {
+      if (avail[k].type === "battle" || avail[k].type === "elite") { target = avail[k]; break; }
+    }
+    if (!target && avail.length) target = avail[0];
+    if (target) {
+      T.dispatch({ id: "route:node:" + target.id });
+    }
+    // 预览是为了看界面：这一层没有战斗节点时直接开一场，别让截图落到别的弹窗上
+    if (!state.run.battle) {
+      state.current.modal = null;
+      load("js/game/state.js").startBattle(state, "normal");
+    }
+    if (state.run.battle) {
+      // affix=xxx 强制给这场战斗挂词缀，用于检查词缀徽标的排版
+      var wantAffix = q.get("affix");
+      if (wantAffix) {
+        var af = load("js/game/data/affixes.js").getById(wantAffix);
+        if (af) {
+          state.run.battle.affix = af.id;
+          state.run.battle.affixName = af.name;
+          state.run.battle.affixDesc = af.desc;
+          state.run.battle.elite = true;
+          state.run.battle.kind = "elite";
+        }
+      }
+      state.run.battle.hp = state.run.battle.maxHp;
+      state.run.battle.enemyShield = 8;
+      state.player.hp = 68;
+      state.run.battle.turn = 3;
+      state.run.battle.logs.unshift("精准射击命中，造成 23 点伤害。");
+      state.run.battle.logs.unshift(state.run.battle.name + " 反击，造成 11 点伤害。");
+      state.run.battle.logs.unshift(state.run.battle.name + " 固守姿态，获得 10 点护盾。");
+    }
+  } else if (modal === "enhance") {
+    state.current.modal = null;
+    load("js/game/state.js").openEnhance(state, 3);
+  } else if (modal === "shop") {
+    state.run.active = true;
+    state.run.effects.firstShopDiscount = 0.7;
+    state.current.modal = "shop";
+  } else if (modal === "event") {
+    state.current.modal = null;
+    load("js/game/state.js").openEvent(state);
+  } else if (modal === "summary") {
+    state.run.completed = true;
+    state.run.active = false;
+    state.current.modal = "summary";
+    state.current.modalData = {
+      summary: {
+        cleared: true, layer: 8, nodes: 14, battlesWon: 6, damageDealt: 412,
+        etherEarned: 186, reward: 124,
+        relics: [{ name: "旧式弹仓" }, { name: "钢骨护符" }, { name: "冷静芯片" }],
+        enhancements: [{}, {}, {}, {}, {}]
+      },
+      message: "裂隙看守者倒下了，你带着整局成果返回了列车。"
+    };
+  } else if (modal === "camp") {
+    state.current.modal = "camp";
+  } else if (modal === "info") {
+    state.current.modal = "info";
+    state.current.modalData = { view: q.get("view") || "collection" };
+  } else if (modal === "settings") {
+    state.current.modal = "settings";
+  } else if (modal === "codex") {
+    // 造一点解锁数据，否则截图全是「？？？」
+    var stateApi2 = load("js/game/state.js");
+    var enApi = load("js/game/data/enemies.js");
+    var relApi = load("js/game/data/relics.js");
+    var ehApi = load("js/game/data/enhancements.js");
+    var ii;
+    for (ii = 0; ii < 9; ii += 1) {
+      state.progress.codex.enemies[enApi.ENEMIES[ii].id] = { seen: 1, defeats: ii % 4 };
+    }
+    for (ii = 0; ii < 5; ii += 1) {
+      state.progress.codex.relics[relApi.RELICS[ii].id] = 1;
+    }
+    for (ii = 0; ii < 7; ii += 1) {
+      state.progress.codex.enhancements[ehApi.ENHANCEMENTS[ii].id] = 1;
+    }
+    state.progress.achievements.firstClear = Date.now();
+    state.progress.achievements.reachBoss = Date.now();
+    state.current.scene = "train";
+    state.current.modal = "codex";
+    state.current.modalData = { tab: q.get("tab") || "enemies", page: parseInt(q.get("page"), 10) || 0 };
+    changed = true;
+  } else if (modal === "daily") {
+    state.progress.trainUpgrades.observatory = 2;
+    state.progress.daily.streak = 3;
+    state.progress.daily.clears = 2;
+    state.current.scene = "train";
+    state.current.modal = "daily";
+    changed = true;
+  } else if (modal === "trainUpgrade") {
+    state.current.scene = "train";
+    state.current.modal = "trainUpgrade";
+  } else if (modal === "chest") {
+    state.run.pendingRelicId = "calmChip";
+    state.current.modal = "chest";
+  }
+
+  // 预览时清掉操作提示，避免遮住界面内容（真实游戏里会 1.8 秒后自动消失）
+  var eng = T.getEngine();
+  if (eng.clearToasts) eng.clearToasts();
+
+  if (changed) {
+    eng.invalidate();
+  }
+
+  // fx=1：打一拳并只推进 80ms，用来截图检查伤害飘字/粒子/震屏的位置
+  var wantFx = q.get("fx") === "1";
+  if (wantFx) {
+    // 先渲染一帧：战斗弹窗要先画出来，特效才知道敌人站在哪
+    eng.__tick(16);
+    T.dispatch({ id: "battle:precise" });
+    if (eng.clearToasts) eng.clearToasts();
+    eng.__tick(80);
+  } else {
+    eng.__tick(16);
+    setTimeout(function () { eng.__tick(400); }, 80);
+  }
+})();
+</script>
+</body>
+</html>
