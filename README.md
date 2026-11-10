@@ -34,6 +34,24 @@ python tools/gen-audio.py
 
 > 没配 AppID 也能编译预览，只是不能上传；没配广告位时激励视频按钮会提示不可用，**不会发奖**（刻意的风控）。
 
+### 在线演示（不是产品形态）
+
+**<https://poem-code.github.io/train-mystery-v3/>** —— 由 `gh-pages` 分支托管，同一套代码、同一套玩法分支，注入假 `tt` 走浏览器分支。用途只有三个：
+
+1. 申请抖音小游戏**开发权限**时，平台要求填「可体验的测试链接」
+2. 没有 AppID 时看效果、做截图走查
+3. 给评审/队友一个点开就能玩的链接
+
+**交付物只有一份：这个目录打出来的 tt 小游戏包。** 网页版缺少广告、分享、震动、真机性能，不能替代真机验收。
+
+重新发布（改了代码后想更新线上演示）：
+
+```bash
+bash tools/deploy-preview.sh        # 重新打包 → 推到 gh-pages 分支
+```
+
+AppID 与广告位怎么申请、卡在哪一步，见 [`docs/DOUYIN_SETUP.md`](docs/DOUYIN_SETUP.md)。
+
 ### 预览页参数
 
 | URL | 效果 |
@@ -174,7 +192,7 @@ docs/                    架构 / 内容表 / 调参手册 / 上线清单 / 完�
 
 ## 五、提审前材料清单（非代码）
 
-- [ ] 小游戏 AppID、开发者资质
+- [ ] 小游戏 AppID、开发者资质 —— 见 [`docs/DOUYIN_SETUP.md`](docs/DOUYIN_SETUP.md)
 - [ ] 图标 512×512、启动图、4—6 张商店截图（`_shots/` 已有一批可裁切）
 - [ ] 隐私政策链接（游戏内已有说明页，但平台要求外链版本）
 - [ ] 软著 / 版号评估结论（休闲无内购可先按平台要求走备案）
@@ -189,6 +207,7 @@ docs/                    架构 / 内容表 / 调参手册 / 上线清单 / 完�
 
 | 文档 | 内容 |
 |---|---|
+| [`docs/DOUYIN_SETUP.md`](docs/DOUYIN_SETUP.md) | **AppID 与广告位 ID 怎么申请**、开发权限申请、备案、卡点与耗时 |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | 四层边界、脏渲染、命中区栈、存档迁移、三态平台层 |
 | [`docs/CONTENT.md`](docs/CONTENT.md) | 敌人 / 词缀 / 遗物 / 强化 / 事件 / 成就 / 每日条件全表 |
 | [`docs/TUNING.md`](docs/TUNING.md) | 数值口径、调参入口、平衡模拟用法、常见失衡症状 |

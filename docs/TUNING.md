@@ -134,7 +134,7 @@ node tools/test-headless.js && node tools/sim-balance.js 300
 |---|---|---|
 | 帧率 | 60fps（低端机 30fps 可接受） | 脏渲染下静态界面几乎 0 绘制 |
 | 首屏时间 | < 2s | `js/` 源码 400 KB，打包后约 304 KB |
-| 包体 | 主包 4 MB 上限（以平台最新文档为准） | 约 1.3 MB（js 400K + assets 928K） |
+| 包体 | 不分包总上限 20 MB（分包则主包 4 MB） | 约 1.3 MB（js 400K + assets 928K） |
 | 单帧绘制 | < 8ms | 用设置页「复制诊断信息」看 `worstRenderMs` |
 
 包体还有大量余量，**音效可以继续加，不要为了省体积牺牲打击感**。
