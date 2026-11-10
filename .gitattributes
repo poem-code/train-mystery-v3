@@ -1,0 +1,11 @@
+# 统一换行，避免 Windows / macOS 协作时整文件 diff
+* text=auto eol=lf
+
+*.wav binary
+*.png binary
+*.jpg binary
+*.webp binary
+
+*.md text eol=lf
+*.js text eol=lf
+*.json text eol=lf

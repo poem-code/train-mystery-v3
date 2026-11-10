@@ -1,0 +1,20 @@
+# 构建产物（由 tools/build-bundle.js 生成，随时可重建）
+tools/preview-bundle.js
+
+# 依赖
+node_modules/
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# 日志与临时文件
+*.log
+*.tmp
+_scratch/
+
+# 本地私有配置（appid、广告位等真实值不要进库）
+project.private.config.json

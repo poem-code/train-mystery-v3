@@ -1,0 +1,14 @@
+{
+  "appid": "REPLACE_WITH_YOUR_APPID",
+  "projectname": "train-mystery-v3",
+  "description": "列车秘境 · 轻 Roguelike 分支路线小游戏",
+  "douyinProjectType": "game",
+  "setting": {
+    "es6": true,
+    "urlCheck": false,
+    "minified": false,
+    "autoCompile": true,
+    "useCompilerPlugins": false
+  },
+  "compileType": "game"
+}
