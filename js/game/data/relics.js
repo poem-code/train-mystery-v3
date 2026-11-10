@@ -131,6 +131,64 @@ var RELICS = [
     desc: "每经过 3 个节点恢复 8 精神值。",
     rarity: "rare",
     effects: { restoreSanityEveryThree: 8 }
+  },
+
+  /* ---------- 第二批次：四个流派各给一件「定型装」 ---------- */
+  {
+    id: "brassCompass",
+    name: "黄铜罗盘",
+    desc: "精准射击暴击率 +15%。",
+    rarity: "rare",
+    effects: { critChance: 0.15 }
+  },
+  {
+    id: "trenchPlate",
+    name: "战壕胸板",
+    desc: "防御时护盾 +10，生命上限 +6。",
+    rarity: "rare",
+    effects: { defendShieldBonus: 10, maxHpBonus: 6 }
+  },
+  {
+    id: "bloodOath",
+    name: "血誓",
+    desc: "生命低于 40% 时伤害 +40%，低精神受伤 -10%。",
+    rarity: "epic",
+    effects: { lowHpDamageBonus: 0.4, lowSanityDamageReduction: 0.1 }
+  },
+  {
+    id: "quickDraw",
+    name: "快枪套",
+    desc: "每场战斗第一击额外造成 12 点伤害。",
+    rarity: "rare",
+    effects: { firstStrikeBonus: 12 }
+  },
+  {
+    id: "widowCoin",
+    name: "寡妇硬币",
+    desc: "每场战斗额外 2 金币，事件收益 +15%。",
+    rarity: "common",
+    effects: { battleBonusGold: 2, eventRewardBoost: 0.15 }
+  },
+  {
+    id: "boneLantern",
+    name: "骨灯",
+    desc: "每场战斗后回 8 生命，回血药剂效果 +10。",
+    rarity: "common",
+    effects: { healAfterBattle: 8, potionBonus: 10 }
+  },
+  {
+    id: "mirrorShard",
+    name: "镜片碎片",
+    desc: "精准暴击率 +8%，对 Boss 伤害 +15%。",
+    rarity: "rare",
+    effects: { critChance: 0.08, bossDamageBonus: 0.15 }
+  },
+  {
+    id: "emptyShell",
+    name: "空弹壳",
+    desc: "攻击力 +3，回血药剂效果 +12。",
+    rarity: "common",
+    effects: { attackFlat: 3, potionBonus: 12 }
   }
 ];
 

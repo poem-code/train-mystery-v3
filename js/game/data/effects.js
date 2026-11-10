@@ -22,7 +22,11 @@ var NUMERIC_KEYS = [
   "lowSanityDamageReduction", // 低精神受伤减免（比例）
   "extraEliteEnhanceChoice",  // 精英额外强化候选
   "maxHpBonus",            // 生命上限加成
-  "reviveHealBonus"        // 复活额外血量
+  "reviveHealBonus",       // 复活额外血量
+  "critChance",            // 精准射击暴击率（0—1，叠加上限在逻辑里夹）
+  "defendShieldBonus",     // 防御额外护盾
+  "lowHpDamageBonus",      // 生命低于 40% 时的伤害加成（比例）
+  "firstStrikeBonus"       // 每场战斗第一击的额外伤害
 ];
 
 /** 布尔型效果 */

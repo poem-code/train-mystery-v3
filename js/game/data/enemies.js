@@ -268,6 +268,167 @@ var ENEMIES = [
     reward: { ether: 92, gold: 5 },
     layerMin: 99,
     intro: "Boss：整节锅炉都是它的躯壳，每次受击都要先啃穿一层铁。"
+  },
+
+  /* ================= 第二批次：新特性 + 深水区敌人 =================
+   *
+   * 这一批的设计目的不是「更多名字」，而是给后期（L5—L8）换节奏：
+   * 前面几层靠熟悉度就能过，从第 5 层开始要读行为。
+   *
+   * 新特性说明：
+   * - weaver 织网：每 3 回合缠住你，下一击伤害 -35%（不封行动，只削弱）
+   * - parasite 寄生：命中后挂卵，2 回合后孵化，扣 12 血并给敌人回 10
+   * - enrage 狂化：首次跌破半血时永久加攻 45%（一刀更比一刀狠）
+   * - gambler 赌徒：伤害在 50%—170% 之间浮动（平均值不变，方差变大）
+   */
+
+  /* ---------------- 普通 · 第二批 ---------------- */
+  {
+    id: "threadWeaver",
+    name: "织网蛛",
+    kind: "normal",
+    trait: "weaver",
+    figure: "normal",
+    color: "#7E8FA6",
+    hpRange: [30, 38],
+    damageRange: [7, 11],
+    reward: { ether: 24, gold: 0 },
+    layerMin: 3,
+    intro: "每 3 回合吐网，你下一击的伤害会被拖慢。"
+  },
+  {
+    id: "broodHost",
+    name: "育卵客",
+    kind: "normal",
+    trait: "parasite",
+    figure: "normal",
+    color: "#A87D8C",
+    hpRange: [36, 44],
+    damageRange: [7, 11],
+    reward: { ether: 25, gold: 0 },
+    layerMin: 4,
+    intro: "命中后在你体内产卵，两回合后孵化——要么速杀，要么挨一下。"
+  },
+  {
+    id: "frenziedMiner",
+    name: "狂乱矿工",
+    kind: "normal",
+    trait: "enrage",
+    figure: "normal",
+    color: "#B0855F",
+    hpRange: [40, 48],
+    damageRange: [8, 12],
+    reward: { ether: 26, gold: 1 },
+    layerMin: 4,
+    intro: "血掉到一半会彻底发狂，攻势永久加重。"
+  },
+  {
+    id: "boneGambler",
+    name: "骸骨赌徒",
+    kind: "normal",
+    trait: "gambler",
+    figure: "normal",
+    color: "#9C8FA0",
+    hpRange: [34, 42],
+    damageRange: [6, 16],
+    reward: { ether: 27, gold: 1 },
+    layerMin: 2,
+    intro: "出手轻重全凭运气，伤害在五成到一成七之间跳。"
+  },
+  {
+    id: "ashPilgrim",
+    name: "灰烬朝圣者",
+    kind: "normal",
+    trait: "wisp",
+    figure: "normal",
+    color: "#8FA3B5",
+    hpRange: [32, 40],
+    damageRange: [6, 10],
+    reward: { ether: 23, gold: 0 },
+    layerMin: 3,
+    intro: "每 2 回合的吸收残光，拖得越久它越精神。"
+  },
+  {
+    id: "chainHound",
+    name: "锁链猎犬",
+    kind: "normal",
+    trait: "wolf",
+    figure: "normal",
+    color: "#96A2AD",
+    hpRange: [30, 38],
+    damageRange: [9, 14],
+    reward: { ether: 25, gold: 0 },
+    layerMin: 5,
+    intro: "受击必反扑，拖在地上的铁链会跟着扫过来。"
+  },
+  {
+    id: "rustPreacher",
+    name: "锈蚀布道者",
+    kind: "normal",
+    trait: "vampire",
+    figure: "normal",
+    color: "#A9707A",
+    hpRange: [38, 46],
+    damageRange: [8, 12],
+    reward: { ether: 26, gold: 0 },
+    layerMin: 5,
+    intro: "打着布道的名义饮血，打空伤害它就吸不到。"
+  },
+
+  /* ---------------- 精英 · 第二批 ---------------- */
+  {
+    id: "weaverMatron",
+    name: "织巢母体",
+    kind: "elite",
+    trait: "weaver",
+    figure: "elite",
+    color: "#6B7E98",
+    hp: [84, 94],
+    damageRange: [9, 14],
+    reward: { ether: 78, gold: 3 },
+    layerMin: 6,
+    intro: "整节车厢都是它的网。每 3 回合把你按在原地一下。"
+  },
+  {
+    id: "hollowKing",
+    name: "空洞之王",
+    kind: "elite",
+    trait: "enrage",
+    figure: "elite",
+    color: "#B4626F",
+    hp: [90, 100],
+    damageRange: [10, 15],
+    reward: { ether: 84, gold: 3 },
+    layerMin: 7,
+    intro: "它空着的王座还在等一个名字。半血之后才是真正的它。"
+  },
+
+  /* ---------------- Boss · 第二批 ---------------- */
+  {
+    id: "brokenSwitchman",
+    name: "断轨扳道工",
+    kind: "boss",
+    trait: "gambler",
+    figure: "boss",
+    color: "#C98A4B",
+    hp: [126, 126],
+    damageRange: [11, 20],
+    reward: { ether: 100, gold: 5 },
+    layerMin: 99,
+    intro: "Boss：它每一次扳道都赌上整列车的方向，出手轻重毫无规律。"
+  },
+  {
+    id: "thePassenger",
+    name: "那位乘客",
+    kind: "boss",
+    trait: "parasite",
+    figure: "boss",
+    color: "#9B6E86",
+    hp: [124, 124],
+    damageRange: [11, 16],
+    reward: { ether: 104, gold: 5 },
+    layerMin: 99,
+    intro: "Boss：从第一站就在车上，一直在等一个愿意让它住下的人。"
   }
 ];
 

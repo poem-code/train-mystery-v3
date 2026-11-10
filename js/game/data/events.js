@@ -508,8 +508,530 @@ var EVENTS = [
         text: "你把三套餐具叠好放在一边，像在等谁回来。"
       }
     ]
+  },
+
+  /* ================= 第二批次：独立事件（11 个） =================
+   *
+   * 这一批侧重「小而具体」的物件：检票剪、行李箱、结冰的水箱……
+   * 单次事件的收益不做大，重点是让 8 层路上不重复看到同样的三件事。
+   */
+
+  {
+    id: "ticketPunch",
+    title: "还亮着的检票剪",
+    text: "一台老式检票剪悬在扶手上，刀口还带着新剪的痕迹。投币口旁边写着两个字：可用。",
+    weight: 11,
+    choices: [
+      {
+        label: "投 1 金币试试",
+        hint: "稳定收益",
+        cost: { gold: 1 },
+        gain: { ether: 30 },
+        text: "检票剪剪下一张半透明的票根，票根化作 30 以太碎片。"
+      },
+      {
+        label: "把手伸进刀口",
+        hint: "一半概率给强化，一半概率被夹",
+        risk: {
+          chance: 0.55,
+          ok: { action: "enhance" },
+          bad: { hp: -14 },
+          okText: "刀口落下却剪开了某种束缚，你获得一次额外强化。",
+          badText: "刀口夹住了你的手腕，你掉了 14 点生命。"
+        }
+      }
+    ]
+  },
+  {
+    id: "hangingCase",
+    title: "挂在行李架上的箱子",
+    text: "一只旧皮箱挂在行李架上，锁扣锈死了，箱角有被撬过的痕迹。",
+    weight: 11,
+    choices: [
+      {
+        label: "砸开它",
+        hint: "可能掉血",
+        risk: {
+          chance: 0.7,
+          ok: { ether: 28, items: { potion: 1 } },
+          bad: { hp: -12 },
+          okText: "锁扣崩开，里面塞着 28 以太碎片和一支药剂。",
+          badText: "箱子弹起的铁片划伤了你的手，你掉了 12 点生命。"
+        }
+      },
+      {
+        label: "整个拎走",
+        hint: "少一点，但稳",
+        gain: { ether: 14 },
+        text: "你没打开它，把它交给路过的商人换了 14 以太碎片。"
+      }
+    ]
+  },
+  {
+    id: "frozenTank",
+    title: "结冰的水箱",
+    text: "水箱表面结着厚冰，冰层下有东西在缓慢移动，看不出是什么。",
+    weight: 10,
+    choices: [
+      {
+        label: "敲碎冰面取水",
+        hint: "耗血换资源",
+        cost: { hp: 8 },
+        gain: { ether: 34 },
+        text: "你砸开冰面，从水里捞出一把沉在底下的碎片，共 34 以太。"
+      },
+      {
+        label: "只化一点冰喝",
+        hint: "回饱食",
+        gain: { hunger: 30 },
+        text: "你把冰块捂化，喝了半升冰水，胃里终于有点东西。"
+      }
+    ]
+  },
+  {
+    id: "cartOfCups",
+    title: "无脸乘务员的推车",
+    text: "一辆餐车停在过道中央，上面摆满杯子，每一杯都冒着热气。推车后面没有人。",
+    weight: 10,
+    choices: [
+      {
+        label: "喝一杯",
+        hint: "多半回血，也可能有问题",
+        risk: {
+          chance: 0.6,
+          ok: { hp: 28 },
+          bad: { hp: -10 },
+          okText: "热汤滑进胃里，你恢复了 28 点生命。",
+          badText: "杯底沉着一层锈，你难受地咳了半天，掉了 10 点生命。"
+        }
+      },
+      {
+        label: "讨要点心",
+        hint: "回饱食",
+        gain: { hunger: 24, ether: 10 },
+        text: "你拿起一碟压缩饼干，推车底部还散着 10 以太碎片。"
+      }
+    ]
+  },
+  {
+    id: "stackOfTickets",
+    title: "一叠旧车票",
+    text: "座位上放着一叠车票，日期全是同一天，终点站写着不同的名字。",
+    weight: 10,
+    choices: [
+      {
+        label: "收起来",
+        hint: "换金币",
+        gain: { gold: 2 },
+        text: "你把车票按站名整理好，卖给了收旧票的人，换到 2 金币。"
+      },
+      {
+        label: "拿口粮换一张",
+        hint: "交口粮，换以太",
+        items: { portableFood: -1 },
+        gain: { ether: 30 },
+        text: "对方接过口粮，把一张印着「终点」的车票推给你，票根值 30 以太。"
+      }
+    ]
+  },
+  {
+    id: "ringingPhone",
+    title: "车厢尽头的电话",
+    text: "墙上的老式电话在响，铃声很轻，像是怕吵醒谁。",
+    weight: 9,
+    minLayer: 2,
+    choices: [
+      {
+        label: "接起来",
+        hint: "精神大幅波动",
+        risk: {
+          chance: 0.5,
+          ok: { sanity: 30 },
+          bad: { sanity: -25 },
+          okText: "那头是熟悉的声音，只说了句「别回头」，你反而踏实了。",
+          badText: "那头只有你自己的呼吸声，一直在重复。"
+        }
+      },
+      {
+        label: "拔掉电话线",
+        hint: "换以太",
+        gain: { ether: 15 },
+        text: "你拔掉线，从听筒里倒出几枚细小的以太结晶。"
+      }
+    ]
+  },
+  {
+    id: "pendulum",
+    title: "停在半空的钟摆",
+    text: "车厢顶上的钟摆悬在半空，既没有下落，也没有回摆。",
+    weight: 9,
+    minLayer: 3,
+    choices: [
+      {
+        label: "跟着它数秒",
+        hint: "回精神",
+        gain: { sanity: 20, ether: 8 },
+        text: "你数到六十的时候它终于动了，你的呼吸也跟着稳下来。"
+      },
+      {
+        label: "用手打断它",
+        hint: "多半有收获",
+        risk: {
+          chance: 0.65,
+          ok: { gold: 3 },
+          bad: { hp: -10 },
+          okText: "钟摆碎成一地零件，轴心是 3 枚金币。",
+          badText: "钟摆反手抽在你的指骨上，掉了 10 点生命。"
+        }
+      }
+    ]
+  },
+  {
+    id: "seatedCorpse",
+    title: "坐着的尸体",
+    text: "一位乘客坐得笔直，双手放在膝上，像是在等下一站。他已经很久没有呼吸了。",
+    weight: 9,
+    minLayer: 3,
+    choices: [
+      {
+        label: "搜他的口袋",
+        hint: "多半有收获",
+        risk: {
+          chance: 0.7,
+          ok: { ether: 30, gold: 2 },
+          bad: { hp: -15 },
+          okText: "口袋里是 30 以太碎片和 2 枚金币，他像是特意留给你的。",
+          badText: "你刚碰到他，他的手指扣住了你的手腕，掉了 15 点生命。"
+        }
+      },
+      {
+        label: "鞠一躬走开",
+        hint: "回精神",
+        gain: { sanity: 12 },
+        text: "你去下一节车厢前对他点了点头。这个动作让你安心。"
+      }
+    ]
+  },
+  {
+    id: "leakingValve",
+    title: "漏气的阀门",
+    text: "一根管子嘶嘶漏着白气，阀门上缠着别人留下的布条。",
+    weight: 10,
+    choices: [
+      {
+        label: "把它拧紧",
+        hint: "耗精神，换以太",
+        cost: { sanity: 10 },
+        gain: { ether: 20 },
+        text: "你顶住蒸汽把阀门拧死，管事的人塞给你 20 以太碎片。"
+      },
+      {
+        label: "顺手拿走布条",
+        hint: "回精神",
+        gain: { sanity: 8, hunger: 6 },
+        text: "布条上还有余温，你把它垫在座位上，靠着喘了口气。"
+      }
+    ]
+  },
+  {
+    id: "handprints",
+    title: "车窗上的手印",
+    text: "整面车窗都是手印，全是从外面按上来的，掌纹很深。",
+    weight: 9,
+    minLayer: 4,
+    choices: [
+      {
+        label: "把它们擦掉",
+        hint: "回精神",
+        gain: { sanity: 18 },
+        text: "你用手肘一节一节擦过去，擦到最后一扇窗时，外面已经什么都没有了。"
+      },
+      {
+        label: "按上自己的手印",
+        hint: "一半概率给强化",
+        risk: {
+          chance: 0.55,
+          ok: { action: "enhance" },
+          bad: { hp: -12 },
+          okText: "你的掌印亮了一下，某种东西顺着玻璃流进了你的手臂。",
+          badText: "玻璃外侧有东西按住了你的手，你掉了 12 点生命。"
+        }
+      }
+    ]
+  },
+  {
+    id: "crateOfVials",
+    title: "一整箱药剂",
+    text: "货架上放着一整个木箱，里面码着整齐的药剂，标签已经看不清了。",
+    weight: 9,
+    minLayer: 3,
+    choices: [
+      {
+        label: "全拿走",
+        hint: "花钱换两个",
+        cost: { ether: 20 },
+        items: { potion: 2 },
+        text: "你付了 20 以太碎片当「保管费」，把两瓶药剂塞进包里。"
+      },
+      {
+        label: "只拿一支",
+        hint: "白拿一支",
+        items: { potion: 1 },
+        text: "你只拿了一支，剩下的留给下一个路过的人。"
+      }
+    ]
+  },
+
+  /* ================= 三条事件链（每链 3 段） =================
+   *
+   * 链事件不进随机池（roll 里过滤掉 chain 字段），只由 nextChainEvent 按顺序发。
+   * 目的：给单局一点「我还记得上一节车厢」的连续性，但失败/跳过不惩罚。
+   */
+
+  /* ---- 链 A：检票员的手册 ---- */
+  {
+    id: "chainTicket1",
+    title: "座位下的半本手册",
+    text: "座位缝里卡着半本手册，封面印着「乘务作业规范」，缺了后半册。",
+    weight: 0,
+    chain: "ticketBook",
+    stage: 1,
+    minLayer: 2,
+    choices: [
+      {
+        label: "收进包里",
+        hint: "换以太",
+        gain: { ether: 18 },
+        text: "你把手册塞进包里，纸页间掉出 18 枚以太碎片。"
+      },
+      {
+        label: "撕下空白页",
+        hint: "回饱食与精神",
+        gain: { hunger: 15, sanity: 8 },
+        text: "你用空白页卷了点干粮，慢慢嚼着，心情松了些。"
+      }
+    ]
+  },
+  {
+    id: "chainTicket2",
+    title: "拿着手册的查票员",
+    text: "一个查票员站在过道中间，手里拿着另外半本手册，正对着你翻。",
+    weight: 0,
+    chain: "ticketBook",
+    stage: 2,
+    minLayer: 4,
+    choices: [
+      {
+        label: "把半本递给他",
+        hint: "多半换到强化",
+        risk: {
+          chance: 0.55,
+          ok: { action: "enhance" },
+          bad: { hp: -20 },
+          okText: "两半合在一起，他点点头，教了你一手东西。",
+          badText: "他看完后把手册塞回你的胸口，力气大得不像人。"
+        }
+      },
+      {
+        label: "说自己在赶时间",
+        hint: "花钱过关",
+        cost: { gold: 1 },
+        gain: { ether: 20 },
+        text: "你塞给他 1 枚金币，他侧身让路，还找回 20 以太碎片。"
+      }
+    ]
+  },
+  {
+    id: "chainTicket3",
+    title: "终点车厢的补票窗口",
+    text: "车厢尽头开着一个补票窗口，里面的人只要你手上那半本手册。",
+    weight: 0,
+    chain: "ticketBook",
+    stage: 3,
+    minLayer: 6,
+    choices: [
+      {
+        label: "用手册补一张全票",
+        hint: "换秒杀卡",
+        cost: { ether: 30 },
+        items: { executeCard: 1 },
+        text: "窗口里的人撕下票根递给你——一张能在关键时刻终结一切的票。"
+      },
+      {
+        label: "把手册还回去",
+        hint: "大回精神与以太",
+        gain: { sanity: 25, ether: 40 },
+        text: "你把手册推回去，说了句「路上小心」。他第一次抬起头看你。"
+      }
+    ]
+  },
+
+  /* ---- 链 B：孩子的画 ---- */
+  {
+    id: "chainDrawing1",
+    title: "一张蜡笔画",
+    text: "座位上摊着一张蜡笔画：一列车，车窗里有很多小人，颜色涂得很用力。",
+    weight: 0,
+    chain: "childDrawing",
+    stage: 1,
+    minLayer: 2,
+    choices: [
+      {
+        label: "收好它",
+        hint: "回精神",
+        gain: { sanity: 12 },
+        text: "你把画折好放进内袋，像是替谁保管一样。"
+      },
+      {
+        label: "折成纸飞机",
+        hint: "换以太",
+        gain: { ether: 16 },
+        text: "纸飞机飞出两节车厢就落了，落地时压着 16 枚以太碎片。"
+      }
+    ]
+  },
+  {
+    id: "chainDrawing2",
+    title: "画里的那节车厢",
+    text: "前面那节车厢和画上一模一样，连车窗里小人的位置都对得上。",
+    weight: 0,
+    chain: "childDrawing",
+    stage: 2,
+    minLayer: 4,
+    choices: [
+      {
+        label: "走进去",
+        hint: "多半给遗物",
+        risk: {
+          chance: 0.6,
+          ok: { action: "relic" },
+          bad: { hp: -18 },
+          okText: "车厢里空着，座位中央放着一件东西，像是给你留的。",
+          badText: "你刚踏进去，所有小人的头同时转了过来。"
+        }
+      },
+      {
+        label: "站在门口看",
+        hint: "稳一点的收益",
+        gain: { ether: 22 },
+        text: "你没有进去。车门关上时，缝隙里掉出 22 枚以太碎片。"
+      }
+    ]
+  },
+  {
+    id: "chainDrawing3",
+    title: "在等你的孩子",
+    text: "一个孩子坐在长椅上，脚够不到地，正低头玩着手里的蜡笔。",
+    weight: 0,
+    chain: "childDrawing",
+    stage: 3,
+    minLayer: 6,
+    choices: [
+      {
+        label: "把画还给他",
+        hint: "大回血与精神",
+        gain: { hp: 15, sanity: 30 },
+        text: "他接过画，认真地说了声谢谢。你觉得身上轻了很多。"
+      },
+      {
+        label: "转身离开",
+        hint: "拿以太，掉精神",
+        cost: { sanity: 15 },
+        gain: { ether: 45 },
+        text: "你没敢回头。包里的以太碎片变沉了，脚步也变沉了。"
+      }
+    ]
+  },
+
+  /* ---- 链 C：锅炉的低语 ---- */
+  {
+    id: "chainBoiler1",
+    title: "地板下的敲击声",
+    text: "脚下的铁板在响，三下，停一下，再三下。像有人在里面敲门。",
+    weight: 0,
+    chain: "boilerWhisper",
+    stage: 1,
+    minLayer: 2,
+    choices: [
+      {
+        label: "也敲三下",
+        hint: "多半有收获",
+        risk: {
+          chance: 0.65,
+          ok: { ether: 28 },
+          bad: { sanity: -20 },
+          okText: "对面回了一串节奏，铁板缝隙里滑出 28 枚以太碎片。",
+          badText: "敲击停下后，你听见自己的名字被念了一遍。"
+        }
+      },
+      {
+        label: "捂住耳朵走开",
+        hint: "回精神",
+        gain: { sanity: 10 },
+        text: "你走远了两节车厢，声音还在，但已经小到可以忽略。"
+      }
+    ]
+  },
+  {
+    id: "chainBoiler2",
+    title: "锅炉检修口",
+    text: "检修口的螺丝被从里面拧松了，盖子虚掩着，往外冒热气。",
+    weight: 0,
+    chain: "boilerWhisper",
+    stage: 2,
+    minLayer: 4,
+    choices: [
+      {
+        label: "钻进去",
+        hint: "耗血换资源",
+        cost: { hp: 10 },
+        gain: { ether: 34, gold: 2 },
+        text: "热浪灼着你的背，你在炉膛边上摸到 34 以太碎片和 2 枚金币。"
+      },
+      {
+        label: "把盖子关严",
+        hint: "回精神",
+        gain: { sanity: 12 },
+        text: "你拧紧螺丝，声音停了。至少这一节车厢是安静的。"
+      }
+    ]
+  },
+  {
+    id: "chainBoiler3",
+    title: "空着的司炉位",
+    text: "锅炉前的凳子空着，铲子还插在煤堆里，炉火却旺得不正常。",
+    weight: 0,
+    chain: "boilerWhisper",
+    stage: 3,
+    minLayer: 6,
+    choices: [
+      {
+        label: "坐进那个位置",
+        hint: "多半给强化，也可能烫伤",
+        risk: {
+          chance: 0.55,
+          ok: { action: "enhance" },
+          bad: { hp: -25 },
+          okText: "炉火顺着你的手臂流了一圈，你突然明白了很多事。",
+          badText: "火舌从炉口窜出来，你的袖子烧掉了一半。"
+        }
+      },
+      {
+        label: "把火压小一点",
+        hint: "稳定收益",
+        gain: { ether: 40, hunger: 20 },
+        text: "你铲了两铲湿煤压住火头，炉边的水壶正好烧开。"
+      }
+    ]
   }
 ];
+
+/** 事件链登记：id → 按顺序排列的段数 */
+var CHAINS = {
+  ticketBook: { name: "检票员的手册", stages: ["chainTicket1", "chainTicket2", "chainTicket3"] },
+  childDrawing: { name: "孩子的画", stages: ["chainDrawing1", "chainDrawing2", "chainDrawing3"] },
+  boilerWhisper: { name: "锅炉的低语", stages: ["chainBoiler1", "chainBoiler2", "chainBoiler3"] }
+};
 
 
 function getById(id) {
@@ -520,11 +1042,12 @@ function getById(id) {
   return null;
 }
 
-/** 按层数与权重抽取（排除最近出现过的 id） */
+/** 按层数与权重抽取（排除最近出现过的 id；链事件不进随机池） */
 function roll(pickRandom, layer, recentIds) {
   var recent = recentIds || [];
   var pool = [];
   EVENTS.forEach(function (event) {
+    if (event.chain) return;              // 链事件只能由 nextChainEvent 发
     if (layer < (event.minLayer || 1)) return;
     if (recent.indexOf(event.id) >= 0) return;
     var weight = event.weight || 10;
@@ -539,8 +1062,45 @@ function roll(pickRandom, layer, recentIds) {
   return pickRandom(pool) || EVENTS[0];
 }
 
+/**
+ * 事件链推进：返回下一个该出现的链事件，没有则返回 null。
+ *
+ * - progress: { chainId: 已完成到第几段 }
+ * - layer:    当前层，用来卡「第 2 段不该在第 1 层就出现」
+ * - random:   注入的 0—1 随机函数（测试里可以传固定值）
+ *
+ * 故意留 CHAIN_CHANCE 这个概率：事件点不多（一局 2—4 个），
+ * 如果一到层数就必发链事件，玩家会觉得「每局都一样」，随机事件的意义就没了。
+ */
+var CHAIN_CHANCE = 0.6;
+var CHAIN_ORDER = ["ticketBook", "childDrawing", "boilerWhisper"];
+
+function nextChainEvent(progress, layer, random) {
+  var reached = progress || {};
+  var rand = typeof random === "function" ? random : Math.random;
+  var candidates = [];
+  var i;
+  for (i = 0; i < CHAIN_ORDER.length; i += 1) {
+    var id = CHAIN_ORDER[i];
+    var chain = CHAINS[id];
+    if (!chain) continue;
+    var done = reached[id] || 0;
+    if (done >= chain.stages.length) continue;
+    var event = getById(chain.stages[done]);
+    if (!event) continue;
+    if (layer < (event.minLayer || 1)) continue;
+    candidates.push({ chain: id, chainName: chain.name, stage: done + 1, total: chain.stages.length, event: event });
+  }
+  if (!candidates.length) return null;
+  if (rand() > CHAIN_CHANCE) return null;
+  var index = Math.floor(rand() * candidates.length) % candidates.length;
+  return candidates[index];
+}
+
 module.exports = {
   EVENTS: EVENTS,
+  CHAINS: CHAINS,
   getById: getById,
-  roll: roll
+  roll: roll,
+  nextChainEvent: nextChainEvent
 };

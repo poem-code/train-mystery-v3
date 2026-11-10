@@ -257,6 +257,12 @@ function sanitizeBattle(raw) {
     affixDesc: typeof raw.affixDesc === "string" ? raw.affixDesc.slice(0, 60) : null,
     poison: toInt(raw.poison, 0, 9, 0),
     revived: raw.revived === true,
+    // 战斗内的临时状态：不补这几个字段，读档后「被缠住的下一击」「胸口里的卵」会凭空消失
+    egg: toInt(raw.egg, 0, 9, 0),
+    webbed: raw.webbed === true,
+    enraged: raw.enraged === true,
+    strikeUsed: raw.strikeUsed === true,
+    lastCrit: raw.lastCrit === true,
     intro: typeof raw.intro === "string" ? raw.intro.slice(0, 80) : "",
     hp: toInt(raw.hp, 0, maxHp, maxHp),
     maxHp: maxHp,
@@ -315,6 +321,24 @@ function sanitizeDaily(raw) {
   };
 }
 
+/**
+ * 事件链进度：只保留登记过的链 id，数值夹在 0—段数之间。
+ * 这里必须白名单化——否则改档写个 { someChain: 99 } 进来，
+ * nextChainEvent 会取到 undefined 的段，表现为「点了事件没反应」。
+ */
+function sanitizeChains(raw) {
+  var eventsApi = require("./data/events");
+  var out = {};
+  if (!raw || typeof raw !== "object") return out;
+  var id;
+  for (id in eventsApi.CHAINS) {
+    if (!Object.prototype.hasOwnProperty.call(eventsApi.CHAINS, id)) continue;
+    var total = eventsApi.CHAINS[id].stages.length;
+    out[id] = toInt(raw[id], 0, total, 0);
+  }
+  return out;
+}
+
 function sanitizeRun(raw) {
   var base = stateApi.createDefaultState(Date.now()).run;
   if (!raw || typeof raw !== "object" || raw.active !== true) return base;
@@ -345,6 +369,15 @@ function sanitizeRun(raw) {
     recentEvents: Array.isArray(raw.recentEvents)
       ? raw.recentEvents.filter(function (id) { return typeof id === "string"; }).slice(0, 3)
       : [],
+    chains: sanitizeChains(raw.chains),
+    eventChain: raw.eventChain && typeof raw.eventChain === "object"
+      ? {
+        id: typeof raw.eventChain.id === "string" ? raw.eventChain.id.slice(0, 24) : null,
+        name: typeof raw.eventChain.name === "string" ? raw.eventChain.name.slice(0, 20) : null,
+        stage: toInt(raw.eventChain.stage, 1, 9, 1),
+        total: toInt(raw.eventChain.total, 1, 9, 3)
+      }
+      : null,
     stats: {
       battlesWon: toInt(raw.stats && raw.stats.battlesWon, 0, 9999, 0),
       damageDealt: toInt(raw.stats && raw.stats.damageDealt, 0, 999999, 0),

@@ -98,6 +98,10 @@ function createRun(seed) {
     relics: [],
     enhancements: [],
     recentEvents: [],
+    /** 事件链进度：{ chainId: 已完成段数 } */
+    chains: {},
+    /** 当前正在展示的链事件（仅用于界面标注） */
+    eventChain: null,
     /** 每日挑战信息：普通局为 null */
     daily: null,
     stats: {
@@ -699,6 +703,11 @@ function startBattle(state, kind) {
     affixDesc: affix ? affix.desc : null,
     poison: 0,
     revived: false,
+    egg: 0,
+    webbed: false,
+    enraged: false,
+    strikeUsed: false,
+    lastCrit: false,
     intro: template.intro,
     hp: hp,
     maxHp: hp,
@@ -732,6 +741,26 @@ function calcPlayerDamage(state, base) {
   if (battle.defenseStance) damage += config.defendNextAttackBonus;
   if (state.player.sanity < 50) damage = Math.round(damage * (1 + run.effects.lowSanityBonus));
   if (battle.boss) damage = Math.round(damage * (1 + run.effects.bossDamageBonus));
+
+  // 背水一战：生命低于 40% 时反打，和「低精神加成」是两条独立的线，
+  // 一个赌血、一个赌精神，逼玩家在两种危险里选一种。
+  var lowHpLine = state.player.maxHp * 0.4;
+  if (state.player.hp > 0 && state.player.hp < lowHpLine) {
+    damage = Math.round(damage * (1 + run.effects.lowHpDamageBonus));
+  }
+
+  // 先手加成只吃本场第一击，打完就作废（用 battle.strikeUsed 标记）
+  if (!battle.strikeUsed && run.effects.firstStrikeBonus > 0) {
+    damage += run.effects.firstStrikeBonus;
+  }
+
+  // 织网：被缠住时这一击削弱，打完即解除
+  if (battle.webbed) {
+    damage = Math.round(damage * 0.65);
+    battle.webbed = false;
+    pushBattleLog(battle, "缠网拖慢了你的动作，这一击被削弱了。");
+  }
+
   return Math.max(1, damage);
 }
 
@@ -783,8 +812,21 @@ function enemyTurn(state) {
     battle.enemyCharge += 1;
     pushBattleLog(battle, battle.name + " 正在蓄势，下一击更危险。");
   }
+  if (battle.trait === "weaver" && battle.turn % 3 === 0) {
+    battle.webbed = true;
+    pushBattleLog(battle, battle.name + " 吐出一层黏网，你的下一击会被拖慢。");
+  }
+  if (battle.trait === "enrage" && !battle.enraged && battle.hp < battle.maxHp * 0.5) {
+    battle.enraged = true;
+    pushBattleLog(battle, battle.name + " 撕开自己的外壳，攻势骤然变猛。");
+  }
 
   var damage = rng.int(battle.damageRange[0], battle.damageRange[1]);
+  // 赌徒：伤害在 50%—170% 之间剧烈浮动，逼你留够血线而不是算平均值
+  if (battle.trait === "gambler") {
+    damage = Math.round(damage * (0.5 + Math.random() * 1.2));
+  }
+  if (battle.trait === "enrage" && battle.enraged) damage = Math.round(damage * 1.45);
   if (affix && affix.damageMul) damage = Math.round(damage * affix.damageMul);
   if (dailyMul !== 1) damage = Math.round(damage * dailyMul);
   if (battle.enemyCharge > 0) {
@@ -843,6 +885,25 @@ function enemyTurn(state) {
     state.player.hp = clamp(state.player.hp - dot, 0, state.player.maxHp);
     battle.lastEnemyDamage = remaining + dot;
     pushBattleLog(battle, "毒素发作，额外损失 " + dot + " 点生命。");
+  }
+
+  // 寄生：命中后挂卵，两回合后孵化。孵化那一下不打折也不吃护盾——
+  // 想躲只能在这两回合里结束战斗，这是这条特性唯一给的解。
+  if (battle.trait === "parasite" && remaining > 0 && !battle.egg) {
+    battle.egg = 2;
+    pushBattleLog(battle, battle.name + " 在你身上产下一枚卵。");
+  }
+  if (battle.egg > 0) {
+    battle.egg -= 1;
+    if (battle.egg === 0) {
+      var hatch = 12;
+      state.player.hp = clamp(state.player.hp - hatch, 0, state.player.maxHp);
+      battle.hp = clamp(battle.hp + 10, 0, battle.maxHp);
+      battle.lastEnemyDamage = remaining + hatch;
+      pushBattleLog(battle, "卵孵化了，你损失 " + hatch + " 点生命，" + battle.name + " 吸收了养分。");
+    } else {
+      pushBattleLog(battle, "体内的卵在蠕动，还有 " + battle.egg + " 回合。");
+    }
   }
 
   // 狂暴：每次出手自伤，但不会把自己打死
@@ -922,12 +983,25 @@ function battleAction(state, actionId) {
 
   if (actionId === "precise") {
     var d1 = calcPlayerDamage(state, config.preciseBonus);
+    battle.strikeUsed = true;
+    // 暴击只挂在「精准」上：强力本来就是赌命中，再叠暴击会变成赌博的上位替代，
+    // 精准反而没人用。让两条路各有各的赌法。
+    var critRate = clamp(run.effects.critChance, 0, 0.6);
+    var isCrit = critRate > 0 && Math.random() < critRate;
+    if (isCrit) {
+      d1 = Math.round(d1 * 1.8);
+      battle.lastCrit = true;
+    } else {
+      battle.lastCrit = false;
+    }
     var r1 = dealEnemyDamage(run, battle, d1);
-    pushBattleLog(battle, "精准射击命中，造成 " + r1.dealt + " 点伤害。");
+    pushBattleLog(battle, isCrit
+      ? "精准射击命中要害，造成 " + r1.dealt + " 点暴击伤害。"
+      : "精准射击命中，造成 " + r1.dealt + " 点伤害。");
     if (battle.hp <= 0) return winBattle(state);
     if (applyMirrorReflect(state, battle)) return { ok: true, reflected: true };
     enemyTurn(state);
-    return { ok: true };
+    return { ok: true, crit: isCrit };
   }
 
   if (actionId === "power") {
@@ -947,6 +1021,8 @@ function battleAction(state, actionId) {
       return { ok: true, dodged: true };
     }
     var d2 = calcPlayerDamage(state, config.powerBonus);
+    battle.strikeUsed = true;
+    battle.lastCrit = false;
     var r2 = dealEnemyDamage(run, battle, d2);
     pushBattleLog(battle, "强力射击轰中目标，造成 " + r2.dealt + " 点伤害。");
     if (battle.hp <= 0) return winBattle(state);
@@ -956,9 +1032,10 @@ function battleAction(state, actionId) {
   }
 
   if (actionId === "defend") {
-    battle.playerShield += config.defendShield;
+    var shieldGain = config.defendShield + run.effects.defendShieldBonus;
+    battle.playerShield += shieldGain;
     battle.defenseStance = true;
-    pushBattleLog(battle, "你摆出防御架势，获得 " + config.defendShield + " 点护盾。");
+    pushBattleLog(battle, "你摆出防御架势，获得 " + shieldGain + " 点护盾。");
     enemyTurn(state);
     return { ok: true };
   }
@@ -1182,7 +1259,18 @@ function confirmChest(state) {
 
 function openEvent(state) {
   var run = state.run;
-  var event = eventsApi.roll(rng.pick, run.layer, run.recentEvents);
+  // 链事件优先：到了一层该说的那句台词，先说。说完就记进度，不重复。
+  var chainPick = eventsApi.nextChainEvent(run.chains, run.layer, Math.random);
+  var event;
+  if (chainPick) {
+    event = chainPick.event;
+    run.chains[chainPick.chain] = chainPick.stage;
+    run.eventChain = { id: chainPick.chain, name: chainPick.chainName, stage: chainPick.stage, total: chainPick.total };
+    pushLog(state, "线索", "「" + chainPick.chainName + "」第 " + chainPick.stage + " / " + chainPick.total + " 段。");
+  } else {
+    event = eventsApi.roll(rng.pick, run.layer, run.recentEvents);
+    run.eventChain = null;
+  }
   run.eventId = event.id;
   run.eventResult = null;
   run.eventChoiceIndex = -1;
@@ -1469,6 +1557,8 @@ module.exports = {
   // 战斗
   startBattle: startBattle,
   battleAction: battleAction,
+  enemyTurn: enemyTurn,
+  calcPlayerDamage: calcPlayerDamage,
   applyAdRevive: applyAdRevive,
   // 强化与遗物
   openEnhance: openEnhance,

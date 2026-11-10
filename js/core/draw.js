@@ -215,6 +215,23 @@ function figRR(ctx, x, y, w, h, r) {
   ctx.fill();
 }
 
+/**
+ * 椭圆路径。低端安卓容器（Chrome 31 以下）与部分 WebView 没有 ctx.ellipse，
+ * 缺了会直接抛错把整帧画崩，所以退化用 scale + arc 画。
+ */
+function figEllipse(ctx, cx, cy, rx, ry) {
+  ctx.beginPath();
+  if (typeof ctx.ellipse === "function") {
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    return;
+  }
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(rx, ry);
+  ctx.arc(0, 0, 1, 0, Math.PI * 2);
+  ctx.restore();
+}
+
 function figPoly(ctx, points) {
   ctx.beginPath();
   var i;
@@ -568,6 +585,159 @@ function figHero(ctx, cx, cy, size, color) {
   ctx.restore();
 }
 
+/* ---------- 第二批次：织网 / 寄生 / 狂化 / 赌徒 ---------- */
+
+function figWeaver(ctx, cx, cy, size, color) {
+  var i;
+  // 八条细腿：先画腿，压在身体下面
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1, size * 0.022);
+  ctx.globalAlpha = 0.75;
+  for (i = 0; i < 4; i += 1) {
+    var y = cy + size * (0.02 + i * 0.09);
+    var spread = size * (0.34 + i * 0.03);
+    ctx.beginPath();
+    ctx.moveTo(cx - size * 0.06, y);
+    ctx.lineTo(cx - spread, y + size * 0.10);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + size * 0.06, y);
+    ctx.lineTo(cx + spread, y + size * 0.10);
+    ctx.stroke();
+  }
+  ctx.restore();
+  // 圆腹
+  figFill(ctx, color, 0.94);
+  ctx.beginPath();
+  ctx.arc(cx, cy + size * 0.14, size * 0.26, 0, Math.PI * 2);
+  ctx.fill();
+  // 头胸
+  ctx.beginPath();
+  ctx.arc(cx, cy - size * 0.12, size * 0.15, 0, Math.PI * 2);
+  ctx.fill();
+  // 腹部网纹
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  ctx.strokeStyle = "rgba(255,255,255,0.75)";
+  ctx.lineWidth = Math.max(1, size * 0.012);
+  for (i = 1; i <= 2; i += 1) {
+    ctx.beginPath();
+    ctx.arc(cx, cy + size * 0.14, size * 0.09 * i, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+  figEyes(ctx, cx, cy - size * 0.13, size * 0.5, "rgba(18,24,30,0.92)");
+  figRim(ctx, cx, cy, size * 0.34, size);
+}
+
+function figParasite(ctx, cx, cy, size, color) {
+  // 肿胀的囊体：上下两个椭圆叠出「被撑开」的感觉
+  figFill(ctx, color, 0.9);
+  ctx.beginPath();
+  figEllipse(ctx, cx, cy + size * 0.06, size * 0.30, size * 0.34);
+  ctx.fill();
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  figEllipse(ctx, cx + size * 0.10, cy - size * 0.14, size * 0.18, size * 0.20);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // 体内的卵：小圆点，暗示「里面还有东西」
+  var eggs = [[-0.10, 0.02], [0.04, 0.14], [0.12, -0.02], [-0.02, -0.12]];
+  for (var i = 0; i < eggs.length; i += 1) {
+    ctx.save();
+    ctx.globalAlpha = 0.42;
+    ctx.fillStyle = "#F3E4D0";
+    ctx.beginPath();
+    ctx.arc(cx + size * eggs[i][0], cy + size * eggs[i][1], size * 0.045, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  // 垂下的肢须
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = 0.6;
+  ctx.lineWidth = Math.max(1, size * 0.018);
+  for (var k = -1; k <= 1; k += 1) {
+    ctx.beginPath();
+    ctx.moveTo(cx + size * k * 0.12, cy + size * 0.32);
+    ctx.quadraticCurveTo(cx + size * k * 0.18, cy + size * 0.42, cx + size * k * 0.10, cy + size * 0.48);
+    ctx.stroke();
+  }
+  ctx.restore();
+  figEyes(ctx, cx, cy - size * 0.14, size * 0.52, "rgba(28,18,24,0.92)");
+}
+
+function figEnrage(ctx, cx, cy, size, color) {
+  // 方肩躯体
+  figFill(ctx, color, 0.95);
+  rr(ctx, cx - size * 0.28, cy - size * 0.30, size * 0.56, size * 0.66, size * 0.10);
+  ctx.fill();
+  // 两侧尖刺：越往外越细，做出「外壳被撑裂」的轮廓
+  figPoly(ctx, [
+    [cx - size * 0.28, cy - size * 0.18],
+    [cx - size * 0.50, cy - size * 0.30],
+    [cx - size * 0.28, cy - size * 0.02]
+  ]);
+  figPoly(ctx, [
+    [cx + size * 0.28, cy - size * 0.18],
+    [cx + size * 0.50, cy - size * 0.30],
+    [cx + size * 0.28, cy - size * 0.02]
+  ]);
+  // 胸口裂缝：锯齿线，里面透出暖光
+  ctx.save();
+  ctx.strokeStyle = "rgba(255,150,90,0.95)";
+  ctx.lineWidth = Math.max(1.2, size * 0.02);
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - size * 0.26);
+  ctx.lineTo(cx - size * 0.06, cy - size * 0.06);
+  ctx.lineTo(cx + size * 0.05, cy + size * 0.02);
+  ctx.lineTo(cx - size * 0.04, cy + size * 0.26);
+  ctx.stroke();
+  ctx.restore();
+  figEyes(ctx, cx, cy - size * 0.20, size * 0.52, "rgba(20,16,18,0.9)");
+}
+
+function figGambler(ctx, cx, cy, size, color) {
+  // 斗篷：上窄下宽，底边做出破布锯齿
+  figFill(ctx, color, 0.9);
+  figPoly(ctx, [
+    [cx, cy - size * 0.38],
+    [cx + size * 0.20, cy - size * 0.12],
+    [cx + size * 0.30, cy + size * 0.34],
+    [cx + size * 0.10, cy + size * 0.30],
+    [cx, cy + size * 0.36],
+    [cx - size * 0.10, cy + size * 0.30],
+    [cx - size * 0.30, cy + size * 0.34],
+    [cx - size * 0.20, cy - size * 0.12]
+  ]);
+  // 兜帽阴影
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = "rgba(12,16,20,0.85)";
+  ctx.beginPath();
+  figEllipse(ctx, cx, cy - size * 0.20, size * 0.13, size * 0.15);
+  ctx.fill();
+  ctx.restore();
+  // 手里的骰子
+  var dx = cx + size * 0.26;
+  var dy = cy + size * 0.04;
+  ctx.save();
+  ctx.globalAlpha = 0.95;
+  ctx.fillStyle = "#F0E2C4";
+  rr(ctx, dx - size * 0.09, dy - size * 0.09, size * 0.18, size * 0.18, size * 0.035);
+  ctx.fill();
+  ctx.fillStyle = "rgba(20,24,28,0.9)";
+  var pips = [[-0.035, -0.035], [0.035, 0], [-0.035, 0.035]];
+  for (var i = 0; i < pips.length; i += 1) {
+    ctx.beginPath();
+    ctx.arc(dx + size * pips[i][0], dy + size * pips[i][1], size * 0.018, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+  figRim(ctx, cx, cy, size * 0.34, size);
+}
+
 var VARIANTS = {
   wolf: figWolf,
   armored: figArmored,
@@ -579,6 +749,10 @@ var VARIANTS = {
   idol: figIdol,
   assassin: figAssassin,
   overlord: figOverlord,
+  weaver: figWeaver,
+  parasite: figParasite,
+  enrage: figEnrage,
+  gambler: figGambler,
   hero: figHero
 };
 

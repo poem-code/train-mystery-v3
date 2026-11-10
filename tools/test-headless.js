@@ -196,6 +196,17 @@ function playStep() {
 }
 
 section("全链路自动游玩");
+
+// 自动游玩必须可复现：把 Math.random 换成固定种子的 LCG。
+// 不这么做的话，「至少通关一次」会随机构红（真实发生过：改了敌人数值后
+// 14 局一局没通，看起来像功能坏了，其实只是骰子背）。
+var realRandom = Math.random;
+var seedState = 20261110;
+Math.random = function () {
+  seedState = (seedState * 1103515245 + 12345) % 2147483648;
+  return seedState / 2147483648;
+};
+
 var errorCount = 0;
 var steps = 0;
 var lastSignature = "";
@@ -264,6 +275,8 @@ ok("自动游玩无异常", errorCount === 0, errorCount + " 次异常");
 ok("完成至少 1 局", runs >= 1, "实际 " + runs + " 局");
 ok("至少通关一次", cleared >= 1, "通关 " + cleared + " 次");
 ok("步数在合理范围", steps < MAX_STEPS, "用了 " + steps + " 步");
+
+Math.random = realRandom;
 
 /* ---------------- 存档一致性 ---------------- */
 
@@ -611,6 +624,150 @@ affixKeys.forEach(function (key) {
   }
 });
 ok("所有词缀字段都有行为分支", unusedAffixKeys.length === 0, unusedAffixKeys.join(","));
+
+/* ---------------- 第二批次内容 ---------------- */
+
+section("内容扩充");
+
+var normalCount = enemiesApi.byKind("normal").length;
+var eliteCount = enemiesApi.byKind("elite").length;
+var bossCount = enemiesApi.byKind("boss").length;
+ok("敌人 30 个（19 普通 / 6 精英 / 5 Boss）",
+  normalCount === 19 && eliteCount === 6 && bossCount === 5,
+  normalCount + "/" + eliteCount + "/" + bossCount);
+ok("强化 34 项", enhApi.ENHANCEMENTS.length === 34, "实际 " + enhApi.ENHANCEMENTS.length);
+ok("遗物 26 件", relicsApi.RELICS.length === 26, "实际 " + relicsApi.RELICS.length);
+
+var standaloneEvents = eventsApi.EVENTS.filter(function (e) { return !e.chain; });
+var chainEvents = eventsApi.EVENTS.filter(function (e) { return !!e.chain; });
+ok("独立事件 32 个", standaloneEvents.length === 32, "实际 " + standaloneEvents.length);
+ok("事件链 3 条共 9 段", Object.keys(eventsApi.CHAINS).length === 3 && chainEvents.length === 9,
+  chainEvents.length + " 段");
+
+// 链事件只能由 nextChainEvent 发；混进随机池的话，玩家会在第 1 层看到第 3 段的台词
+var chainInPool = false;
+var rollProbe = 0;
+while (rollProbe < 120) {
+  var probed = eventsApi.roll(function (pool) { return pool[0]; }, 8, []);
+  if (probed && probed.chain) chainInPool = true;
+  rollProbe += 1;
+}
+ok("随机池里没有链事件", !chainInPool);
+
+section("新特性行为");
+
+var sw1 = freshRun();
+var bWeaver = makeBattle(sw1, { trait: "weaver", turn: 3, damageRange: [10, 10] });
+stateApi.enemyTurn(sw1);
+ok("织网在第 3 回合缠住你", bWeaver.webbed === true);
+
+var sw2 = freshRun();
+var bWebbed = makeBattle(sw2, { trait: "none", webbed: true, hp: 200, maxHp: 200, damageRange: [0, 0] });
+stateApi.battleAction(sw2, "precise");
+// 精准 20 → 缠网 ×0.65 = 13
+ok("被缠网时这一击削弱到 65% 并立即解除",
+  bWebbed.hp === 187 && bWebbed.webbed === false, "敌人 " + bWebbed.hp);
+
+var sp1 = freshRun();
+var bParasite = makeBattle(sp1, { trait: "parasite", hp: 200, maxHp: 200, damageRange: [5, 5] });
+stateApi.battleAction(sp1, "precise");
+ok("寄生命中后挂卵", bParasite.egg === 1, "卵倒计时 " + bParasite.egg);
+stateApi.battleAction(sp1, "precise");
+// 玩家 100-5-5-12 = 78；敌人 200-20-20+10 = 170
+ok("卵孵化时扣血并给敌人回血",
+  sp1.player.hp === 78 && bParasite.hp === 170,
+  "玩家 " + sp1.player.hp + " 敌人 " + bParasite.hp);
+
+var se1 = freshRun();
+var bEnrage = makeBattle(se1, { trait: "enrage", hp: 40, maxHp: 100, damageRange: [10, 10] });
+stateApi.enemyTurn(se1);
+// 半血触发，10 × 1.45 = 15（四舍五入）
+ok("狂化在半血触发且攻击变重",
+  bEnrage.enraged === true && se1.player.hp === 85, "玩家 " + se1.player.hp);
+
+var sg1 = freshRun();
+var bGambler = makeBattle(sg1, { trait: "gambler", hp: 500, maxHp: 500, damageRange: [10, 10] });
+var gamblerHits = [];
+var gi;
+for (gi = 0; gi < 14; gi += 1) {
+  sg1.player.hp = 100;
+  stateApi.enemyTurn(sg1);
+  gamblerHits.push(100 - sg1.player.hp);
+}
+var gMin = Math.min.apply(null, gamblerHits);
+var gMax = Math.max.apply(null, gamblerHits);
+ok("赌徒伤害浮动（50%—170%）", gMin >= 5 && gMax <= 17 && gMax - gMin >= 3,
+  "区间 " + gMin + "—" + gMax);
+
+section("新效果字段行为");
+
+var sc1 = freshRun();
+sc1.run.effects.critChance = 0.6; // 叠加上限 0.6
+var bCrit = makeBattle(sc1, { trait: "none", hp: 200, maxHp: 200, damageRange: [0, 0] });
+var critRollBackup = Math.random;
+Math.random = function () { return 0; }; // 强制判定命中
+var critRes = stateApi.battleAction(sc1, "precise");
+Math.random = critRollBackup;
+ok("暴击判定命中时打出 1.8 倍", bCrit.hp === 164 && critRes.crit === true, "敌人 " + bCrit.hp);
+
+var sc0 = freshRun();
+var bNoCrit = makeBattle(sc0, { trait: "none", hp: 200, maxHp: 200, damageRange: [0, 0] });
+var noCritRes = stateApi.battleAction(sc0, "precise");
+ok("暴击率为 0 时不暴击", bNoCrit.hp === 180 && noCritRes.crit === false, "敌人 " + bNoCrit.hp);
+
+var sl1 = freshRun();
+sl1.run.effects.lowHpDamageBonus = 0.5;
+var bLowHp = makeBattle(sl1, { trait: "none", hp: 200, maxHp: 200, damageRange: [0, 0] });
+sl1.player.hp = 30; // 低于 40% 血线
+stateApi.battleAction(sl1, "precise");
+ok("残血时伤害 +50%", bLowHp.hp === 170, "敌人 " + bLowHp.hp);
+
+var sd1 = freshRun();
+sd1.run.effects.defendShieldBonus = 8;
+var bDefend = makeBattle(sd1, { trait: "none", damageRange: [0, 0] });
+stateApi.battleAction(sd1, "defend");
+ok("防御额外护盾计入", bDefend.logs.join(" ").indexOf("获得 20 点护盾") >= 0,
+  bDefend.logs.join(" | ").slice(0, 60));
+
+var sf1 = freshRun();
+sf1.run.effects.firstStrikeBonus = 10;
+var bFirst = makeBattle(sf1, { trait: "none", hp: 300, maxHp: 300, damageRange: [0, 0] });
+stateApi.battleAction(sf1, "precise"); // 20 + 10 = 30
+var afterFirst = bFirst.hp;
+stateApi.battleAction(sf1, "precise"); // 只有 20
+ok("先手加成只算第一击，第二击回归常态",
+  afterFirst === 270 && bFirst.hp === 250, "首击后 " + afterFirst + " 二击后 " + bFirst.hp);
+
+section("事件链");
+
+ok("层数不够时不出链事件",
+  eventsApi.nextChainEvent({}, 1, function () { return 0; }) === null);
+ok("链事件按段推进",
+  (eventsApi.nextChainEvent({ ticketBook: 1 }, 4, function () { return 0.1; }) || {}).event.id === "chainTicket2");
+ok("链走完后不再返回",
+  eventsApi.nextChainEvent({ ticketBook: 3, childDrawing: 3, boilerWhisper: 3 }, 99, function () { return 0.1; }) === null);
+ok("概率没命中时不插链事件",
+  eventsApi.nextChainEvent({}, 6, function () { return 0.95; }) === null);
+
+var stChain = freshRun();
+stChain.run.layer = 2;
+stChain.run.chains = {};
+var chainRollBackup = Math.random;
+Math.random = function () { return 0; }; // 概率必中，且取第一个候选链
+stateApi.openEvent(stChain);
+Math.random = chainRollBackup;
+ok("开局事件会接上第一条链并记录进度",
+  stChain.run.eventId === "chainTicket1" && stChain.run.chains.ticketBook === 1,
+  stChain.run.eventId + " / " + JSON.stringify(stChain.run.chains));
+
+var stChainSave = freshRun();
+stChainSave.run.chains = { ticketBook: 99, childDrawing: -5, evilChain: 5 };
+var stChainLoaded = storage.migrate(JSON.parse(JSON.stringify(stChainSave)));
+ok("chains 存档白名单化并夹取",
+  stChainLoaded.run.chains.ticketBook === 3 &&
+  stChainLoaded.run.chains.childDrawing === 0 &&
+  stChainLoaded.run.chains.evilChain === undefined,
+  JSON.stringify(stChainLoaded.run.chains));
 
 /* ---------------- 汇总 ---------------- */
 

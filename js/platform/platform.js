@@ -72,9 +72,9 @@ function createStubContext() {
   };
   var methods = [
     "save", "restore", "scale", "translate", "rotate", "transform", "setTransform",
-    "beginPath", "closePath", "moveTo", "lineTo", "arc", "arcTo", "rect", "quadraticCurveTo",
-    "bezierCurveTo", "fill", "stroke", "clip", "fillRect", "strokeRect", "clearRect",
-    "fillText", "strokeText", "drawImage", "putImageData"
+    "beginPath", "closePath", "moveTo", "lineTo", "arc", "arcTo", "ellipse", "rect",
+    "quadraticCurveTo", "bezierCurveTo", "fill", "stroke", "clip", "fillRect", "strokeRect",
+    "clearRect", "fillText", "strokeText", "drawImage", "putImageData"
   ];
   methods.forEach(function (name) {
     ctx[name] = noop;
