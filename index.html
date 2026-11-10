@@ -167,6 +167,27 @@
       load("js/game/state.js").startBattle(state, "normal");
     }
     if (state.run.battle) {
+      // enemy=xxx 强制换成指定敌人，用来逐个检查新剪影（weaver / parasite / enrage / gambler）
+      var wantEnemy = q.get("enemy");
+      if (wantEnemy) {
+        var def = load("js/game/data/enemies.js").getById(wantEnemy);
+        if (def) {
+          var b = state.run.battle;
+          var hpVal = def.hp ? def.hp[0] : def.hpRange[1];
+          b.enemyId = def.id;
+          b.name = def.name;
+          b.trait = def.trait;
+          b.figure = def.figure;
+          b.color = def.color;
+          b.intro = def.intro;
+          b.hp = hpVal;
+          b.maxHp = hpVal;
+          b.damageRange = def.damageRange.slice();
+          b.boss = def.kind === "boss";
+          b.elite = def.kind === "elite";
+          b.logs[0] = def.intro || "战斗开始。";
+        }
+      }
       // affix=xxx 强制给这场战斗挂词缀，用于检查词缀徽标的排版
       var wantAffix = q.get("affix");
       if (wantAffix) {

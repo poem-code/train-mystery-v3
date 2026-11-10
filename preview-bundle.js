@@ -247,6 +247,23 @@ function figRR(ctx, x, y, w, h, r) {
   ctx.fill();
 }
 
+/**
+ * 椭圆路径。低端安卓容器（Chrome 31 以下）与部分 WebView 没有 ctx.ellipse，
+ * 缺了会直接抛错把整帧画崩，所以退化用 scale + arc 画。
+ */
+function figEllipse(ctx, cx, cy, rx, ry) {
+  ctx.beginPath();
+  if (typeof ctx.ellipse === "function") {
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    return;
+  }
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(rx, ry);
+  ctx.arc(0, 0, 1, 0, Math.PI * 2);
+  ctx.restore();
+}
+
 function figPoly(ctx, points) {
   ctx.beginPath();
   var i;
@@ -600,6 +617,159 @@ function figHero(ctx, cx, cy, size, color) {
   ctx.restore();
 }
 
+/* ---------- 第二批次：织网 / 寄生 / 狂化 / 赌徒 ---------- */
+
+function figWeaver(ctx, cx, cy, size, color) {
+  var i;
+  // 八条细腿：先画腿，压在身体下面
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1, size * 0.022);
+  ctx.globalAlpha = 0.75;
+  for (i = 0; i < 4; i += 1) {
+    var y = cy + size * (0.02 + i * 0.09);
+    var spread = size * (0.34 + i * 0.03);
+    ctx.beginPath();
+    ctx.moveTo(cx - size * 0.06, y);
+    ctx.lineTo(cx - spread, y + size * 0.10);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + size * 0.06, y);
+    ctx.lineTo(cx + spread, y + size * 0.10);
+    ctx.stroke();
+  }
+  ctx.restore();
+  // 圆腹
+  figFill(ctx, color, 0.94);
+  ctx.beginPath();
+  ctx.arc(cx, cy + size * 0.14, size * 0.26, 0, Math.PI * 2);
+  ctx.fill();
+  // 头胸
+  ctx.beginPath();
+  ctx.arc(cx, cy - size * 0.12, size * 0.15, 0, Math.PI * 2);
+  ctx.fill();
+  // 腹部网纹
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  ctx.strokeStyle = "rgba(255,255,255,0.75)";
+  ctx.lineWidth = Math.max(1, size * 0.012);
+  for (i = 1; i <= 2; i += 1) {
+    ctx.beginPath();
+    ctx.arc(cx, cy + size * 0.14, size * 0.09 * i, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+  figEyes(ctx, cx, cy - size * 0.13, size * 0.5, "rgba(18,24,30,0.92)");
+  figRim(ctx, cx, cy, size * 0.34, size);
+}
+
+function figParasite(ctx, cx, cy, size, color) {
+  // 肿胀的囊体：上下两个椭圆叠出「被撑开」的感觉
+  figFill(ctx, color, 0.9);
+  ctx.beginPath();
+  figEllipse(ctx, cx, cy + size * 0.06, size * 0.30, size * 0.34);
+  ctx.fill();
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  figEllipse(ctx, cx + size * 0.10, cy - size * 0.14, size * 0.18, size * 0.20);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // 体内的卵：小圆点，暗示「里面还有东西」
+  var eggs = [[-0.10, 0.02], [0.04, 0.14], [0.12, -0.02], [-0.02, -0.12]];
+  for (var i = 0; i < eggs.length; i += 1) {
+    ctx.save();
+    ctx.globalAlpha = 0.42;
+    ctx.fillStyle = "#F3E4D0";
+    ctx.beginPath();
+    ctx.arc(cx + size * eggs[i][0], cy + size * eggs[i][1], size * 0.045, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  // 垂下的肢须
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = 0.6;
+  ctx.lineWidth = Math.max(1, size * 0.018);
+  for (var k = -1; k <= 1; k += 1) {
+    ctx.beginPath();
+    ctx.moveTo(cx + size * k * 0.12, cy + size * 0.32);
+    ctx.quadraticCurveTo(cx + size * k * 0.18, cy + size * 0.42, cx + size * k * 0.10, cy + size * 0.48);
+    ctx.stroke();
+  }
+  ctx.restore();
+  figEyes(ctx, cx, cy - size * 0.14, size * 0.52, "rgba(28,18,24,0.92)");
+}
+
+function figEnrage(ctx, cx, cy, size, color) {
+  // 方肩躯体
+  figFill(ctx, color, 0.95);
+  rr(ctx, cx - size * 0.28, cy - size * 0.30, size * 0.56, size * 0.66, size * 0.10);
+  ctx.fill();
+  // 两侧尖刺：越往外越细，做出「外壳被撑裂」的轮廓
+  figPoly(ctx, [
+    [cx - size * 0.28, cy - size * 0.18],
+    [cx - size * 0.50, cy - size * 0.30],
+    [cx - size * 0.28, cy - size * 0.02]
+  ]);
+  figPoly(ctx, [
+    [cx + size * 0.28, cy - size * 0.18],
+    [cx + size * 0.50, cy - size * 0.30],
+    [cx + size * 0.28, cy - size * 0.02]
+  ]);
+  // 胸口裂缝：锯齿线，里面透出暖光
+  ctx.save();
+  ctx.strokeStyle = "rgba(255,150,90,0.95)";
+  ctx.lineWidth = Math.max(1.2, size * 0.02);
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - size * 0.26);
+  ctx.lineTo(cx - size * 0.06, cy - size * 0.06);
+  ctx.lineTo(cx + size * 0.05, cy + size * 0.02);
+  ctx.lineTo(cx - size * 0.04, cy + size * 0.26);
+  ctx.stroke();
+  ctx.restore();
+  figEyes(ctx, cx, cy - size * 0.20, size * 0.52, "rgba(20,16,18,0.9)");
+}
+
+function figGambler(ctx, cx, cy, size, color) {
+  // 斗篷：上窄下宽，底边做出破布锯齿
+  figFill(ctx, color, 0.9);
+  figPoly(ctx, [
+    [cx, cy - size * 0.38],
+    [cx + size * 0.20, cy - size * 0.12],
+    [cx + size * 0.30, cy + size * 0.34],
+    [cx + size * 0.10, cy + size * 0.30],
+    [cx, cy + size * 0.36],
+    [cx - size * 0.10, cy + size * 0.30],
+    [cx - size * 0.30, cy + size * 0.34],
+    [cx - size * 0.20, cy - size * 0.12]
+  ]);
+  // 兜帽阴影
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = "rgba(12,16,20,0.85)";
+  ctx.beginPath();
+  figEllipse(ctx, cx, cy - size * 0.20, size * 0.13, size * 0.15);
+  ctx.fill();
+  ctx.restore();
+  // 手里的骰子
+  var dx = cx + size * 0.26;
+  var dy = cy + size * 0.04;
+  ctx.save();
+  ctx.globalAlpha = 0.95;
+  ctx.fillStyle = "#F0E2C4";
+  rr(ctx, dx - size * 0.09, dy - size * 0.09, size * 0.18, size * 0.18, size * 0.035);
+  ctx.fill();
+  ctx.fillStyle = "rgba(20,24,28,0.9)";
+  var pips = [[-0.035, -0.035], [0.035, 0], [-0.035, 0.035]];
+  for (var i = 0; i < pips.length; i += 1) {
+    ctx.beginPath();
+    ctx.arc(dx + size * pips[i][0], dy + size * pips[i][1], size * 0.018, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+  figRim(ctx, cx, cy, size * 0.34, size);
+}
+
 var VARIANTS = {
   wolf: figWolf,
   armored: figArmored,
@@ -611,6 +781,10 @@ var VARIANTS = {
   idol: figIdol,
   assassin: figAssassin,
   overlord: figOverlord,
+  weaver: figWeaver,
+  parasite: figParasite,
+  enrage: figEnrage,
+  gambler: figGambler,
   hero: figHero
 };
 
@@ -2280,7 +2454,11 @@ var NUMERIC_KEYS = [
   "lowSanityDamageReduction", // 低精神受伤减免（比例）
   "extraEliteEnhanceChoice",  // 精英额外强化候选
   "maxHpBonus",            // 生命上限加成
-  "reviveHealBonus"        // 复活额外血量
+  "reviveHealBonus",       // 复活额外血量
+  "critChance",            // 精准射击暴击率（0—1，叠加上限在逻辑里夹）
+  "defendShieldBonus",     // 防御额外护盾
+  "lowHpDamageBonus",      // 生命低于 40% 时的伤害加成（比例）
+  "firstStrikeBonus"       // 每场战斗第一击的额外伤害
 ];
 
 /** 布尔型效果 */
@@ -2598,6 +2776,167 @@ var ENEMIES = [
     reward: { ether: 92, gold: 5 },
     layerMin: 99,
     intro: "Boss：整节锅炉都是它的躯壳，每次受击都要先啃穿一层铁。"
+  },
+
+  /* ================= 第二批次：新特性 + 深水区敌人 =================
+   *
+   * 这一批的设计目的不是「更多名字」，而是给后期（L5—L8）换节奏：
+   * 前面几层靠熟悉度就能过，从第 5 层开始要读行为。
+   *
+   * 新特性说明：
+   * - weaver 织网：每 3 回合缠住你，下一击伤害 -35%（不封行动，只削弱）
+   * - parasite 寄生：命中后挂卵，2 回合后孵化，扣 12 血并给敌人回 10
+   * - enrage 狂化：首次跌破半血时永久加攻 45%（一刀更比一刀狠）
+   * - gambler 赌徒：伤害在 50%—170% 之间浮动（平均值不变，方差变大）
+   */
+
+  /* ---------------- 普通 · 第二批 ---------------- */
+  {
+    id: "threadWeaver",
+    name: "织网蛛",
+    kind: "normal",
+    trait: "weaver",
+    figure: "normal",
+    color: "#7E8FA6",
+    hpRange: [30, 38],
+    damageRange: [7, 11],
+    reward: { ether: 24, gold: 0 },
+    layerMin: 3,
+    intro: "每 3 回合吐网，你下一击的伤害会被拖慢。"
+  },
+  {
+    id: "broodHost",
+    name: "育卵客",
+    kind: "normal",
+    trait: "parasite",
+    figure: "normal",
+    color: "#A87D8C",
+    hpRange: [36, 44],
+    damageRange: [7, 11],
+    reward: { ether: 25, gold: 0 },
+    layerMin: 4,
+    intro: "命中后在你体内产卵，两回合后孵化——要么速杀，要么挨一下。"
+  },
+  {
+    id: "frenziedMiner",
+    name: "狂乱矿工",
+    kind: "normal",
+    trait: "enrage",
+    figure: "normal",
+    color: "#B0855F",
+    hpRange: [40, 48],
+    damageRange: [8, 12],
+    reward: { ether: 26, gold: 1 },
+    layerMin: 4,
+    intro: "血掉到一半会彻底发狂，攻势永久加重。"
+  },
+  {
+    id: "boneGambler",
+    name: "骸骨赌徒",
+    kind: "normal",
+    trait: "gambler",
+    figure: "normal",
+    color: "#9C8FA0",
+    hpRange: [34, 42],
+    damageRange: [6, 16],
+    reward: { ether: 27, gold: 1 },
+    layerMin: 2,
+    intro: "出手轻重全凭运气，伤害在五成到一成七之间跳。"
+  },
+  {
+    id: "ashPilgrim",
+    name: "灰烬朝圣者",
+    kind: "normal",
+    trait: "wisp",
+    figure: "normal",
+    color: "#8FA3B5",
+    hpRange: [32, 40],
+    damageRange: [6, 10],
+    reward: { ether: 23, gold: 0 },
+    layerMin: 3,
+    intro: "每 2 回合的吸收残光，拖得越久它越精神。"
+  },
+  {
+    id: "chainHound",
+    name: "锁链猎犬",
+    kind: "normal",
+    trait: "wolf",
+    figure: "normal",
+    color: "#96A2AD",
+    hpRange: [30, 38],
+    damageRange: [9, 14],
+    reward: { ether: 25, gold: 0 },
+    layerMin: 5,
+    intro: "受击必反扑，拖在地上的铁链会跟着扫过来。"
+  },
+  {
+    id: "rustPreacher",
+    name: "锈蚀布道者",
+    kind: "normal",
+    trait: "vampire",
+    figure: "normal",
+    color: "#A9707A",
+    hpRange: [38, 46],
+    damageRange: [8, 12],
+    reward: { ether: 26, gold: 0 },
+    layerMin: 5,
+    intro: "打着布道的名义饮血，打空伤害它就吸不到。"
+  },
+
+  /* ---------------- 精英 · 第二批 ---------------- */
+  {
+    id: "weaverMatron",
+    name: "织巢母体",
+    kind: "elite",
+    trait: "weaver",
+    figure: "elite",
+    color: "#6B7E98",
+    hp: [84, 94],
+    damageRange: [9, 14],
+    reward: { ether: 78, gold: 3 },
+    layerMin: 6,
+    intro: "整节车厢都是它的网。每 3 回合把你按在原地一下。"
+  },
+  {
+    id: "hollowKing",
+    name: "空洞之王",
+    kind: "elite",
+    trait: "enrage",
+    figure: "elite",
+    color: "#B4626F",
+    hp: [90, 100],
+    damageRange: [10, 15],
+    reward: { ether: 84, gold: 3 },
+    layerMin: 7,
+    intro: "它空着的王座还在等一个名字。半血之后才是真正的它。"
+  },
+
+  /* ---------------- Boss · 第二批 ---------------- */
+  {
+    id: "brokenSwitchman",
+    name: "断轨扳道工",
+    kind: "boss",
+    trait: "gambler",
+    figure: "boss",
+    color: "#C98A4B",
+    hp: [126, 126],
+    damageRange: [11, 20],
+    reward: { ether: 100, gold: 5 },
+    layerMin: 99,
+    intro: "Boss：它每一次扳道都赌上整列车的方向，出手轻重毫无规律。"
+  },
+  {
+    id: "thePassenger",
+    name: "那位乘客",
+    kind: "boss",
+    trait: "parasite",
+    figure: "boss",
+    color: "#9B6E86",
+    hp: [124, 124],
+    damageRange: [11, 16],
+    reward: { ether: 104, gold: 5 },
+    layerMin: 99,
+    intro: "Boss：从第一站就在车上，一直在等一个愿意让它住下的人。"
   }
 ];
 
@@ -2664,7 +3003,23 @@ var ENHANCEMENTS = [
   { id: "calmSight", name: "静观", desc: "低精神时受到的伤害 -20%。", tag: "防御", effects: { lowSanityDamageReduction: 0.2 } },
   { id: "marrow", name: "骨髓代谢", desc: "每场战斗后回 6 生命，每 2 节点回 6 饱食。", tag: "续航", effects: { healAfterBattle: 6, foodRecoveryEveryTwo: 6 } },
   { id: "nightRun", name: "夜行", desc: "节点移动的饱食消耗 -3。", tag: "机动", effects: { hungerCostDelta: -3 } },
-  { id: "riftLens", name: "裂隙透镜", desc: "对 Boss 伤害 +25%。", tag: "攻击", effects: { bossDamageBonus: 0.25 } }
+  { id: "riftLens", name: "裂隙透镜", desc: "对 Boss 伤害 +25%。", tag: "攻击", effects: { bossDamageBonus: 0.25 } },
+
+  /* ---------- 第三批：暴击 / 盾流 / 残血反打 / 先手 ----------
+   * 这一批补的是「打法」而不是「数值」：
+   * 暴击流走精准，盾流走防御，残血流走血线管理，先手流走速杀。
+   * 四条线各自能成型，混搭则都不够强——这才是 3 选 1 该有的分叉。
+   */
+  { id: "aimVitals", name: "瞄准要害", desc: "精准射击有 20% 几率暴击（1.8 倍伤害）。", tag: "攻击", effects: { critChance: 0.2 } },
+  { id: "eagleEye", name: "鹰眼", desc: "攻击力 +2，精准暴击率 +12%。", tag: "攻击", effects: { attackFlat: 2, critChance: 0.12 } },
+  { id: "ironWall", name: "铁壁", desc: "防御时护盾 +8。", tag: "防御", effects: { defendShieldBonus: 8 } },
+  { id: "shieldWall", name: "盾墙", desc: "防御时护盾 +12，但节点饱食消耗 +1。", tag: "防御", effects: { defendShieldBonus: 12, hungerCostDelta: 1 } },
+  { id: "lastStand", name: "背水一战", desc: "生命低于 40% 时，伤害 +35%。", tag: "攻击", effects: { lowHpDamageBonus: 0.35 } },
+  { id: "desperate", name: "死战", desc: "生命低于 40% 时伤害 +25%，生命上限 +6。", tag: "攻击", effects: { lowHpDamageBonus: 0.25, maxHpBonus: 6 } },
+  { id: "openingPress", name: "开场压制", desc: "每场战斗第一击额外造成 8 点伤害。", tag: "攻击", effects: { firstStrikeBonus: 8 } },
+  { id: "ambush", name: "伏击", desc: "战斗第一击 +10 伤害，首回合护盾 +4。", tag: "机动", effects: { firstStrikeBonus: 10, firstTurnShield: 4 } },
+  { id: "thinBlood", name: "稀血", desc: "残血时伤害 +20%，每场战斗后回 6 生命。", tag: "续航", effects: { lowHpDamageBonus: 0.2, healAfterBattle: 6 } },
+  { id: "hunterInstinct", name: "猎人直觉", desc: "精准暴击率 +10%，每场战斗额外 1 金币。", tag: "收益", effects: { critChance: 0.1, battleBonusGold: 1 } }
 ];
 
 function getById(id) {
@@ -3202,8 +3557,530 @@ var EVENTS = [
         text: "你把三套餐具叠好放在一边，像在等谁回来。"
       }
     ]
+  },
+
+  /* ================= 第二批次：独立事件（11 个） =================
+   *
+   * 这一批侧重「小而具体」的物件：检票剪、行李箱、结冰的水箱……
+   * 单次事件的收益不做大，重点是让 8 层路上不重复看到同样的三件事。
+   */
+
+  {
+    id: "ticketPunch",
+    title: "还亮着的检票剪",
+    text: "一台老式检票剪悬在扶手上，刀口还带着新剪的痕迹。投币口旁边写着两个字：可用。",
+    weight: 11,
+    choices: [
+      {
+        label: "投 1 金币试试",
+        hint: "稳定收益",
+        cost: { gold: 1 },
+        gain: { ether: 30 },
+        text: "检票剪剪下一张半透明的票根，票根化作 30 以太碎片。"
+      },
+      {
+        label: "把手伸进刀口",
+        hint: "一半概率给强化，一半概率被夹",
+        risk: {
+          chance: 0.55,
+          ok: { action: "enhance" },
+          bad: { hp: -14 },
+          okText: "刀口落下却剪开了某种束缚，你获得一次额外强化。",
+          badText: "刀口夹住了你的手腕，你掉了 14 点生命。"
+        }
+      }
+    ]
+  },
+  {
+    id: "hangingCase",
+    title: "挂在行李架上的箱子",
+    text: "一只旧皮箱挂在行李架上，锁扣锈死了，箱角有被撬过的痕迹。",
+    weight: 11,
+    choices: [
+      {
+        label: "砸开它",
+        hint: "可能掉血",
+        risk: {
+          chance: 0.7,
+          ok: { ether: 28, items: { potion: 1 } },
+          bad: { hp: -12 },
+          okText: "锁扣崩开，里面塞着 28 以太碎片和一支药剂。",
+          badText: "箱子弹起的铁片划伤了你的手，你掉了 12 点生命。"
+        }
+      },
+      {
+        label: "整个拎走",
+        hint: "少一点，但稳",
+        gain: { ether: 14 },
+        text: "你没打开它，把它交给路过的商人换了 14 以太碎片。"
+      }
+    ]
+  },
+  {
+    id: "frozenTank",
+    title: "结冰的水箱",
+    text: "水箱表面结着厚冰，冰层下有东西在缓慢移动，看不出是什么。",
+    weight: 10,
+    choices: [
+      {
+        label: "敲碎冰面取水",
+        hint: "耗血换资源",
+        cost: { hp: 8 },
+        gain: { ether: 34 },
+        text: "你砸开冰面，从水里捞出一把沉在底下的碎片，共 34 以太。"
+      },
+      {
+        label: "只化一点冰喝",
+        hint: "回饱食",
+        gain: { hunger: 30 },
+        text: "你把冰块捂化，喝了半升冰水，胃里终于有点东西。"
+      }
+    ]
+  },
+  {
+    id: "cartOfCups",
+    title: "无脸乘务员的推车",
+    text: "一辆餐车停在过道中央，上面摆满杯子，每一杯都冒着热气。推车后面没有人。",
+    weight: 10,
+    choices: [
+      {
+        label: "喝一杯",
+        hint: "多半回血，也可能有问题",
+        risk: {
+          chance: 0.6,
+          ok: { hp: 28 },
+          bad: { hp: -10 },
+          okText: "热汤滑进胃里，你恢复了 28 点生命。",
+          badText: "杯底沉着一层锈，你难受地咳了半天，掉了 10 点生命。"
+        }
+      },
+      {
+        label: "讨要点心",
+        hint: "回饱食",
+        gain: { hunger: 24, ether: 10 },
+        text: "你拿起一碟压缩饼干，推车底部还散着 10 以太碎片。"
+      }
+    ]
+  },
+  {
+    id: "stackOfTickets",
+    title: "一叠旧车票",
+    text: "座位上放着一叠车票，日期全是同一天，终点站写着不同的名字。",
+    weight: 10,
+    choices: [
+      {
+        label: "收起来",
+        hint: "换金币",
+        gain: { gold: 2 },
+        text: "你把车票按站名整理好，卖给了收旧票的人，换到 2 金币。"
+      },
+      {
+        label: "拿口粮换一张",
+        hint: "交口粮，换以太",
+        items: { portableFood: -1 },
+        gain: { ether: 30 },
+        text: "对方接过口粮，把一张印着「终点」的车票推给你，票根值 30 以太。"
+      }
+    ]
+  },
+  {
+    id: "ringingPhone",
+    title: "车厢尽头的电话",
+    text: "墙上的老式电话在响，铃声很轻，像是怕吵醒谁。",
+    weight: 9,
+    minLayer: 2,
+    choices: [
+      {
+        label: "接起来",
+        hint: "精神大幅波动",
+        risk: {
+          chance: 0.5,
+          ok: { sanity: 30 },
+          bad: { sanity: -25 },
+          okText: "那头是熟悉的声音，只说了句「别回头」，你反而踏实了。",
+          badText: "那头只有你自己的呼吸声，一直在重复。"
+        }
+      },
+      {
+        label: "拔掉电话线",
+        hint: "换以太",
+        gain: { ether: 15 },
+        text: "你拔掉线，从听筒里倒出几枚细小的以太结晶。"
+      }
+    ]
+  },
+  {
+    id: "pendulum",
+    title: "停在半空的钟摆",
+    text: "车厢顶上的钟摆悬在半空，既没有下落，也没有回摆。",
+    weight: 9,
+    minLayer: 3,
+    choices: [
+      {
+        label: "跟着它数秒",
+        hint: "回精神",
+        gain: { sanity: 20, ether: 8 },
+        text: "你数到六十的时候它终于动了，你的呼吸也跟着稳下来。"
+      },
+      {
+        label: "用手打断它",
+        hint: "多半有收获",
+        risk: {
+          chance: 0.65,
+          ok: { gold: 3 },
+          bad: { hp: -10 },
+          okText: "钟摆碎成一地零件，轴心是 3 枚金币。",
+          badText: "钟摆反手抽在你的指骨上，掉了 10 点生命。"
+        }
+      }
+    ]
+  },
+  {
+    id: "seatedCorpse",
+    title: "坐着的尸体",
+    text: "一位乘客坐得笔直，双手放在膝上，像是在等下一站。他已经很久没有呼吸了。",
+    weight: 9,
+    minLayer: 3,
+    choices: [
+      {
+        label: "搜他的口袋",
+        hint: "多半有收获",
+        risk: {
+          chance: 0.7,
+          ok: { ether: 30, gold: 2 },
+          bad: { hp: -15 },
+          okText: "口袋里是 30 以太碎片和 2 枚金币，他像是特意留给你的。",
+          badText: "你刚碰到他，他的手指扣住了你的手腕，掉了 15 点生命。"
+        }
+      },
+      {
+        label: "鞠一躬走开",
+        hint: "回精神",
+        gain: { sanity: 12 },
+        text: "你去下一节车厢前对他点了点头。这个动作让你安心。"
+      }
+    ]
+  },
+  {
+    id: "leakingValve",
+    title: "漏气的阀门",
+    text: "一根管子嘶嘶漏着白气，阀门上缠着别人留下的布条。",
+    weight: 10,
+    choices: [
+      {
+        label: "把它拧紧",
+        hint: "耗精神，换以太",
+        cost: { sanity: 10 },
+        gain: { ether: 20 },
+        text: "你顶住蒸汽把阀门拧死，管事的人塞给你 20 以太碎片。"
+      },
+      {
+        label: "顺手拿走布条",
+        hint: "回精神",
+        gain: { sanity: 8, hunger: 6 },
+        text: "布条上还有余温，你把它垫在座位上，靠着喘了口气。"
+      }
+    ]
+  },
+  {
+    id: "handprints",
+    title: "车窗上的手印",
+    text: "整面车窗都是手印，全是从外面按上来的，掌纹很深。",
+    weight: 9,
+    minLayer: 4,
+    choices: [
+      {
+        label: "把它们擦掉",
+        hint: "回精神",
+        gain: { sanity: 18 },
+        text: "你用手肘一节一节擦过去，擦到最后一扇窗时，外面已经什么都没有了。"
+      },
+      {
+        label: "按上自己的手印",
+        hint: "一半概率给强化",
+        risk: {
+          chance: 0.55,
+          ok: { action: "enhance" },
+          bad: { hp: -12 },
+          okText: "你的掌印亮了一下，某种东西顺着玻璃流进了你的手臂。",
+          badText: "玻璃外侧有东西按住了你的手，你掉了 12 点生命。"
+        }
+      }
+    ]
+  },
+  {
+    id: "crateOfVials",
+    title: "一整箱药剂",
+    text: "货架上放着一整个木箱，里面码着整齐的药剂，标签已经看不清了。",
+    weight: 9,
+    minLayer: 3,
+    choices: [
+      {
+        label: "全拿走",
+        hint: "花钱换两个",
+        cost: { ether: 20 },
+        items: { potion: 2 },
+        text: "你付了 20 以太碎片当「保管费」，把两瓶药剂塞进包里。"
+      },
+      {
+        label: "只拿一支",
+        hint: "白拿一支",
+        items: { potion: 1 },
+        text: "你只拿了一支，剩下的留给下一个路过的人。"
+      }
+    ]
+  },
+
+  /* ================= 三条事件链（每链 3 段） =================
+   *
+   * 链事件不进随机池（roll 里过滤掉 chain 字段），只由 nextChainEvent 按顺序发。
+   * 目的：给单局一点「我还记得上一节车厢」的连续性，但失败/跳过不惩罚。
+   */
+
+  /* ---- 链 A：检票员的手册 ---- */
+  {
+    id: "chainTicket1",
+    title: "座位下的半本手册",
+    text: "座位缝里卡着半本手册，封面印着「乘务作业规范」，缺了后半册。",
+    weight: 0,
+    chain: "ticketBook",
+    stage: 1,
+    minLayer: 2,
+    choices: [
+      {
+        label: "收进包里",
+        hint: "换以太",
+        gain: { ether: 18 },
+        text: "你把手册塞进包里，纸页间掉出 18 枚以太碎片。"
+      },
+      {
+        label: "撕下空白页",
+        hint: "回饱食与精神",
+        gain: { hunger: 15, sanity: 8 },
+        text: "你用空白页卷了点干粮，慢慢嚼着，心情松了些。"
+      }
+    ]
+  },
+  {
+    id: "chainTicket2",
+    title: "拿着手册的查票员",
+    text: "一个查票员站在过道中间，手里拿着另外半本手册，正对着你翻。",
+    weight: 0,
+    chain: "ticketBook",
+    stage: 2,
+    minLayer: 4,
+    choices: [
+      {
+        label: "把半本递给他",
+        hint: "多半换到强化",
+        risk: {
+          chance: 0.55,
+          ok: { action: "enhance" },
+          bad: { hp: -20 },
+          okText: "两半合在一起，他点点头，教了你一手东西。",
+          badText: "他看完后把手册塞回你的胸口，力气大得不像人。"
+        }
+      },
+      {
+        label: "说自己在赶时间",
+        hint: "花钱过关",
+        cost: { gold: 1 },
+        gain: { ether: 20 },
+        text: "你塞给他 1 枚金币，他侧身让路，还找回 20 以太碎片。"
+      }
+    ]
+  },
+  {
+    id: "chainTicket3",
+    title: "终点车厢的补票窗口",
+    text: "车厢尽头开着一个补票窗口，里面的人只要你手上那半本手册。",
+    weight: 0,
+    chain: "ticketBook",
+    stage: 3,
+    minLayer: 6,
+    choices: [
+      {
+        label: "用手册补一张全票",
+        hint: "换秒杀卡",
+        cost: { ether: 30 },
+        items: { executeCard: 1 },
+        text: "窗口里的人撕下票根递给你——一张能在关键时刻终结一切的票。"
+      },
+      {
+        label: "把手册还回去",
+        hint: "大回精神与以太",
+        gain: { sanity: 25, ether: 40 },
+        text: "你把手册推回去，说了句「路上小心」。他第一次抬起头看你。"
+      }
+    ]
+  },
+
+  /* ---- 链 B：孩子的画 ---- */
+  {
+    id: "chainDrawing1",
+    title: "一张蜡笔画",
+    text: "座位上摊着一张蜡笔画：一列车，车窗里有很多小人，颜色涂得很用力。",
+    weight: 0,
+    chain: "childDrawing",
+    stage: 1,
+    minLayer: 2,
+    choices: [
+      {
+        label: "收好它",
+        hint: "回精神",
+        gain: { sanity: 12 },
+        text: "你把画折好放进内袋，像是替谁保管一样。"
+      },
+      {
+        label: "折成纸飞机",
+        hint: "换以太",
+        gain: { ether: 16 },
+        text: "纸飞机飞出两节车厢就落了，落地时压着 16 枚以太碎片。"
+      }
+    ]
+  },
+  {
+    id: "chainDrawing2",
+    title: "画里的那节车厢",
+    text: "前面那节车厢和画上一模一样，连车窗里小人的位置都对得上。",
+    weight: 0,
+    chain: "childDrawing",
+    stage: 2,
+    minLayer: 4,
+    choices: [
+      {
+        label: "走进去",
+        hint: "多半给遗物",
+        risk: {
+          chance: 0.6,
+          ok: { action: "relic" },
+          bad: { hp: -18 },
+          okText: "车厢里空着，座位中央放着一件东西，像是给你留的。",
+          badText: "你刚踏进去，所有小人的头同时转了过来。"
+        }
+      },
+      {
+        label: "站在门口看",
+        hint: "稳一点的收益",
+        gain: { ether: 22 },
+        text: "你没有进去。车门关上时，缝隙里掉出 22 枚以太碎片。"
+      }
+    ]
+  },
+  {
+    id: "chainDrawing3",
+    title: "在等你的孩子",
+    text: "一个孩子坐在长椅上，脚够不到地，正低头玩着手里的蜡笔。",
+    weight: 0,
+    chain: "childDrawing",
+    stage: 3,
+    minLayer: 6,
+    choices: [
+      {
+        label: "把画还给他",
+        hint: "大回血与精神",
+        gain: { hp: 15, sanity: 30 },
+        text: "他接过画，认真地说了声谢谢。你觉得身上轻了很多。"
+      },
+      {
+        label: "转身离开",
+        hint: "拿以太，掉精神",
+        cost: { sanity: 15 },
+        gain: { ether: 45 },
+        text: "你没敢回头。包里的以太碎片变沉了，脚步也变沉了。"
+      }
+    ]
+  },
+
+  /* ---- 链 C：锅炉的低语 ---- */
+  {
+    id: "chainBoiler1",
+    title: "地板下的敲击声",
+    text: "脚下的铁板在响，三下，停一下，再三下。像有人在里面敲门。",
+    weight: 0,
+    chain: "boilerWhisper",
+    stage: 1,
+    minLayer: 2,
+    choices: [
+      {
+        label: "也敲三下",
+        hint: "多半有收获",
+        risk: {
+          chance: 0.65,
+          ok: { ether: 28 },
+          bad: { sanity: -20 },
+          okText: "对面回了一串节奏，铁板缝隙里滑出 28 枚以太碎片。",
+          badText: "敲击停下后，你听见自己的名字被念了一遍。"
+        }
+      },
+      {
+        label: "捂住耳朵走开",
+        hint: "回精神",
+        gain: { sanity: 10 },
+        text: "你走远了两节车厢，声音还在，但已经小到可以忽略。"
+      }
+    ]
+  },
+  {
+    id: "chainBoiler2",
+    title: "锅炉检修口",
+    text: "检修口的螺丝被从里面拧松了，盖子虚掩着，往外冒热气。",
+    weight: 0,
+    chain: "boilerWhisper",
+    stage: 2,
+    minLayer: 4,
+    choices: [
+      {
+        label: "钻进去",
+        hint: "耗血换资源",
+        cost: { hp: 10 },
+        gain: { ether: 34, gold: 2 },
+        text: "热浪灼着你的背，你在炉膛边上摸到 34 以太碎片和 2 枚金币。"
+      },
+      {
+        label: "把盖子关严",
+        hint: "回精神",
+        gain: { sanity: 12 },
+        text: "你拧紧螺丝，声音停了。至少这一节车厢是安静的。"
+      }
+    ]
+  },
+  {
+    id: "chainBoiler3",
+    title: "空着的司炉位",
+    text: "锅炉前的凳子空着，铲子还插在煤堆里，炉火却旺得不正常。",
+    weight: 0,
+    chain: "boilerWhisper",
+    stage: 3,
+    minLayer: 6,
+    choices: [
+      {
+        label: "坐进那个位置",
+        hint: "多半给强化，也可能烫伤",
+        risk: {
+          chance: 0.55,
+          ok: { action: "enhance" },
+          bad: { hp: -25 },
+          okText: "炉火顺着你的手臂流了一圈，你突然明白了很多事。",
+          badText: "火舌从炉口窜出来，你的袖子烧掉了一半。"
+        }
+      },
+      {
+        label: "把火压小一点",
+        hint: "稳定收益",
+        gain: { ether: 40, hunger: 20 },
+        text: "你铲了两铲湿煤压住火头，炉边的水壶正好烧开。"
+      }
+    ]
   }
 ];
+
+/** 事件链登记：id → 按顺序排列的段数 */
+var CHAINS = {
+  ticketBook: { name: "检票员的手册", stages: ["chainTicket1", "chainTicket2", "chainTicket3"] },
+  childDrawing: { name: "孩子的画", stages: ["chainDrawing1", "chainDrawing2", "chainDrawing3"] },
+  boilerWhisper: { name: "锅炉的低语", stages: ["chainBoiler1", "chainBoiler2", "chainBoiler3"] }
+};
 
 
 function getById(id) {
@@ -3214,11 +4091,12 @@ function getById(id) {
   return null;
 }
 
-/** 按层数与权重抽取（排除最近出现过的 id） */
+/** 按层数与权重抽取（排除最近出现过的 id；链事件不进随机池） */
 function roll(pickRandom, layer, recentIds) {
   var recent = recentIds || [];
   var pool = [];
   EVENTS.forEach(function (event) {
+    if (event.chain) return;              // 链事件只能由 nextChainEvent 发
     if (layer < (event.minLayer || 1)) return;
     if (recent.indexOf(event.id) >= 0) return;
     var weight = event.weight || 10;
@@ -3233,10 +4111,47 @@ function roll(pickRandom, layer, recentIds) {
   return pickRandom(pool) || EVENTS[0];
 }
 
+/**
+ * 事件链推进：返回下一个该出现的链事件，没有则返回 null。
+ *
+ * - progress: { chainId: 已完成到第几段 }
+ * - layer:    当前层，用来卡「第 2 段不该在第 1 层就出现」
+ * - random:   注入的 0—1 随机函数（测试里可以传固定值）
+ *
+ * 故意留 CHAIN_CHANCE 这个概率：事件点不多（一局 2—4 个），
+ * 如果一到层数就必发链事件，玩家会觉得「每局都一样」，随机事件的意义就没了。
+ */
+var CHAIN_CHANCE = 0.6;
+var CHAIN_ORDER = ["ticketBook", "childDrawing", "boilerWhisper"];
+
+function nextChainEvent(progress, layer, random) {
+  var reached = progress || {};
+  var rand = typeof random === "function" ? random : Math.random;
+  var candidates = [];
+  var i;
+  for (i = 0; i < CHAIN_ORDER.length; i += 1) {
+    var id = CHAIN_ORDER[i];
+    var chain = CHAINS[id];
+    if (!chain) continue;
+    var done = reached[id] || 0;
+    if (done >= chain.stages.length) continue;
+    var event = getById(chain.stages[done]);
+    if (!event) continue;
+    if (layer < (event.minLayer || 1)) continue;
+    candidates.push({ chain: id, chainName: chain.name, stage: done + 1, total: chain.stages.length, event: event });
+  }
+  if (!candidates.length) return null;
+  if (rand() > CHAIN_CHANCE) return null;
+  var index = Math.floor(rand() * candidates.length) % candidates.length;
+  return candidates[index];
+}
+
 module.exports = {
   EVENTS: EVENTS,
+  CHAINS: CHAINS,
   getById: getById,
-  roll: roll
+  roll: roll,
+  nextChainEvent: nextChainEvent
 };
 
 });
@@ -3512,6 +4427,64 @@ var RELICS = [
     desc: "每经过 3 个节点恢复 8 精神值。",
     rarity: "rare",
     effects: { restoreSanityEveryThree: 8 }
+  },
+
+  /* ---------- 第二批次：四个流派各给一件「定型装」 ---------- */
+  {
+    id: "brassCompass",
+    name: "黄铜罗盘",
+    desc: "精准射击暴击率 +15%。",
+    rarity: "rare",
+    effects: { critChance: 0.15 }
+  },
+  {
+    id: "trenchPlate",
+    name: "战壕胸板",
+    desc: "防御时护盾 +10，生命上限 +6。",
+    rarity: "rare",
+    effects: { defendShieldBonus: 10, maxHpBonus: 6 }
+  },
+  {
+    id: "bloodOath",
+    name: "血誓",
+    desc: "生命低于 40% 时伤害 +40%，低精神受伤 -10%。",
+    rarity: "epic",
+    effects: { lowHpDamageBonus: 0.4, lowSanityDamageReduction: 0.1 }
+  },
+  {
+    id: "quickDraw",
+    name: "快枪套",
+    desc: "每场战斗第一击额外造成 12 点伤害。",
+    rarity: "rare",
+    effects: { firstStrikeBonus: 12 }
+  },
+  {
+    id: "widowCoin",
+    name: "寡妇硬币",
+    desc: "每场战斗额外 2 金币，事件收益 +15%。",
+    rarity: "common",
+    effects: { battleBonusGold: 2, eventRewardBoost: 0.15 }
+  },
+  {
+    id: "boneLantern",
+    name: "骨灯",
+    desc: "每场战斗后回 8 生命，回血药剂效果 +10。",
+    rarity: "common",
+    effects: { healAfterBattle: 8, potionBonus: 10 }
+  },
+  {
+    id: "mirrorShard",
+    name: "镜片碎片",
+    desc: "精准暴击率 +8%，对 Boss 伤害 +15%。",
+    rarity: "rare",
+    effects: { critChance: 0.08, bossDamageBonus: 0.15 }
+  },
+  {
+    id: "emptyShell",
+    name: "空弹壳",
+    desc: "攻击力 +3，回血药剂效果 +12。",
+    rarity: "common",
+    effects: { attackFlat: 3, potionBonus: 12 }
   }
 ];
 
@@ -6648,6 +7621,10 @@ function createRun(seed) {
     relics: [],
     enhancements: [],
     recentEvents: [],
+    /** 事件链进度：{ chainId: 已完成段数 } */
+    chains: {},
+    /** 当前正在展示的链事件（仅用于界面标注） */
+    eventChain: null,
     /** 每日挑战信息：普通局为 null */
     daily: null,
     stats: {
@@ -7249,6 +8226,11 @@ function startBattle(state, kind) {
     affixDesc: affix ? affix.desc : null,
     poison: 0,
     revived: false,
+    egg: 0,
+    webbed: false,
+    enraged: false,
+    strikeUsed: false,
+    lastCrit: false,
     intro: template.intro,
     hp: hp,
     maxHp: hp,
@@ -7282,6 +8264,26 @@ function calcPlayerDamage(state, base) {
   if (battle.defenseStance) damage += config.defendNextAttackBonus;
   if (state.player.sanity < 50) damage = Math.round(damage * (1 + run.effects.lowSanityBonus));
   if (battle.boss) damage = Math.round(damage * (1 + run.effects.bossDamageBonus));
+
+  // 背水一战：生命低于 40% 时反打，和「低精神加成」是两条独立的线，
+  // 一个赌血、一个赌精神，逼玩家在两种危险里选一种。
+  var lowHpLine = state.player.maxHp * 0.4;
+  if (state.player.hp > 0 && state.player.hp < lowHpLine) {
+    damage = Math.round(damage * (1 + run.effects.lowHpDamageBonus));
+  }
+
+  // 先手加成只吃本场第一击，打完就作废（用 battle.strikeUsed 标记）
+  if (!battle.strikeUsed && run.effects.firstStrikeBonus > 0) {
+    damage += run.effects.firstStrikeBonus;
+  }
+
+  // 织网：被缠住时这一击削弱，打完即解除
+  if (battle.webbed) {
+    damage = Math.round(damage * 0.65);
+    battle.webbed = false;
+    pushBattleLog(battle, "缠网拖慢了你的动作，这一击被削弱了。");
+  }
+
   return Math.max(1, damage);
 }
 
@@ -7333,8 +8335,21 @@ function enemyTurn(state) {
     battle.enemyCharge += 1;
     pushBattleLog(battle, battle.name + " 正在蓄势，下一击更危险。");
   }
+  if (battle.trait === "weaver" && battle.turn % 3 === 0) {
+    battle.webbed = true;
+    pushBattleLog(battle, battle.name + " 吐出一层黏网，你的下一击会被拖慢。");
+  }
+  if (battle.trait === "enrage" && !battle.enraged && battle.hp < battle.maxHp * 0.5) {
+    battle.enraged = true;
+    pushBattleLog(battle, battle.name + " 撕开自己的外壳，攻势骤然变猛。");
+  }
 
   var damage = rng.int(battle.damageRange[0], battle.damageRange[1]);
+  // 赌徒：伤害在 50%—170% 之间剧烈浮动，逼你留够血线而不是算平均值
+  if (battle.trait === "gambler") {
+    damage = Math.round(damage * (0.5 + Math.random() * 1.2));
+  }
+  if (battle.trait === "enrage" && battle.enraged) damage = Math.round(damage * 1.45);
   if (affix && affix.damageMul) damage = Math.round(damage * affix.damageMul);
   if (dailyMul !== 1) damage = Math.round(damage * dailyMul);
   if (battle.enemyCharge > 0) {
@@ -7393,6 +8408,25 @@ function enemyTurn(state) {
     state.player.hp = clamp(state.player.hp - dot, 0, state.player.maxHp);
     battle.lastEnemyDamage = remaining + dot;
     pushBattleLog(battle, "毒素发作，额外损失 " + dot + " 点生命。");
+  }
+
+  // 寄生：命中后挂卵，两回合后孵化。孵化那一下不打折也不吃护盾——
+  // 想躲只能在这两回合里结束战斗，这是这条特性唯一给的解。
+  if (battle.trait === "parasite" && remaining > 0 && !battle.egg) {
+    battle.egg = 2;
+    pushBattleLog(battle, battle.name + " 在你身上产下一枚卵。");
+  }
+  if (battle.egg > 0) {
+    battle.egg -= 1;
+    if (battle.egg === 0) {
+      var hatch = 12;
+      state.player.hp = clamp(state.player.hp - hatch, 0, state.player.maxHp);
+      battle.hp = clamp(battle.hp + 10, 0, battle.maxHp);
+      battle.lastEnemyDamage = remaining + hatch;
+      pushBattleLog(battle, "卵孵化了，你损失 " + hatch + " 点生命，" + battle.name + " 吸收了养分。");
+    } else {
+      pushBattleLog(battle, "体内的卵在蠕动，还有 " + battle.egg + " 回合。");
+    }
   }
 
   // 狂暴：每次出手自伤，但不会把自己打死
@@ -7472,12 +8506,25 @@ function battleAction(state, actionId) {
 
   if (actionId === "precise") {
     var d1 = calcPlayerDamage(state, config.preciseBonus);
+    battle.strikeUsed = true;
+    // 暴击只挂在「精准」上：强力本来就是赌命中，再叠暴击会变成赌博的上位替代，
+    // 精准反而没人用。让两条路各有各的赌法。
+    var critRate = clamp(run.effects.critChance, 0, 0.6);
+    var isCrit = critRate > 0 && Math.random() < critRate;
+    if (isCrit) {
+      d1 = Math.round(d1 * 1.8);
+      battle.lastCrit = true;
+    } else {
+      battle.lastCrit = false;
+    }
     var r1 = dealEnemyDamage(run, battle, d1);
-    pushBattleLog(battle, "精准射击命中，造成 " + r1.dealt + " 点伤害。");
+    pushBattleLog(battle, isCrit
+      ? "精准射击命中要害，造成 " + r1.dealt + " 点暴击伤害。"
+      : "精准射击命中，造成 " + r1.dealt + " 点伤害。");
     if (battle.hp <= 0) return winBattle(state);
     if (applyMirrorReflect(state, battle)) return { ok: true, reflected: true };
     enemyTurn(state);
-    return { ok: true };
+    return { ok: true, crit: isCrit };
   }
 
   if (actionId === "power") {
@@ -7497,6 +8544,8 @@ function battleAction(state, actionId) {
       return { ok: true, dodged: true };
     }
     var d2 = calcPlayerDamage(state, config.powerBonus);
+    battle.strikeUsed = true;
+    battle.lastCrit = false;
     var r2 = dealEnemyDamage(run, battle, d2);
     pushBattleLog(battle, "强力射击轰中目标，造成 " + r2.dealt + " 点伤害。");
     if (battle.hp <= 0) return winBattle(state);
@@ -7506,9 +8555,10 @@ function battleAction(state, actionId) {
   }
 
   if (actionId === "defend") {
-    battle.playerShield += config.defendShield;
+    var shieldGain = config.defendShield + run.effects.defendShieldBonus;
+    battle.playerShield += shieldGain;
     battle.defenseStance = true;
-    pushBattleLog(battle, "你摆出防御架势，获得 " + config.defendShield + " 点护盾。");
+    pushBattleLog(battle, "你摆出防御架势，获得 " + shieldGain + " 点护盾。");
     enemyTurn(state);
     return { ok: true };
   }
@@ -7732,7 +8782,18 @@ function confirmChest(state) {
 
 function openEvent(state) {
   var run = state.run;
-  var event = eventsApi.roll(rng.pick, run.layer, run.recentEvents);
+  // 链事件优先：到了一层该说的那句台词，先说。说完就记进度，不重复。
+  var chainPick = eventsApi.nextChainEvent(run.chains, run.layer, Math.random);
+  var event;
+  if (chainPick) {
+    event = chainPick.event;
+    run.chains[chainPick.chain] = chainPick.stage;
+    run.eventChain = { id: chainPick.chain, name: chainPick.chainName, stage: chainPick.stage, total: chainPick.total };
+    pushLog(state, "线索", "「" + chainPick.chainName + "」第 " + chainPick.stage + " / " + chainPick.total + " 段。");
+  } else {
+    event = eventsApi.roll(rng.pick, run.layer, run.recentEvents);
+    run.eventChain = null;
+  }
   run.eventId = event.id;
   run.eventResult = null;
   run.eventChoiceIndex = -1;
@@ -8019,6 +9080,8 @@ module.exports = {
   // 战斗
   startBattle: startBattle,
   battleAction: battleAction,
+  enemyTurn: enemyTurn,
+  calcPlayerDamage: calcPlayerDamage,
   applyAdRevive: applyAdRevive,
   // 强化与遗物
   openEnhance: openEnhance,
@@ -8319,6 +9382,12 @@ function sanitizeBattle(raw) {
     affixDesc: typeof raw.affixDesc === "string" ? raw.affixDesc.slice(0, 60) : null,
     poison: toInt(raw.poison, 0, 9, 0),
     revived: raw.revived === true,
+    // 战斗内的临时状态：不补这几个字段，读档后「被缠住的下一击」「胸口里的卵」会凭空消失
+    egg: toInt(raw.egg, 0, 9, 0),
+    webbed: raw.webbed === true,
+    enraged: raw.enraged === true,
+    strikeUsed: raw.strikeUsed === true,
+    lastCrit: raw.lastCrit === true,
     intro: typeof raw.intro === "string" ? raw.intro.slice(0, 80) : "",
     hp: toInt(raw.hp, 0, maxHp, maxHp),
     maxHp: maxHp,
@@ -8377,6 +9446,24 @@ function sanitizeDaily(raw) {
   };
 }
 
+/**
+ * 事件链进度：只保留登记过的链 id，数值夹在 0—段数之间。
+ * 这里必须白名单化——否则改档写个 { someChain: 99 } 进来，
+ * nextChainEvent 会取到 undefined 的段，表现为「点了事件没反应」。
+ */
+function sanitizeChains(raw) {
+  var eventsApi = require("./data/events");
+  var out = {};
+  if (!raw || typeof raw !== "object") return out;
+  var id;
+  for (id in eventsApi.CHAINS) {
+    if (!Object.prototype.hasOwnProperty.call(eventsApi.CHAINS, id)) continue;
+    var total = eventsApi.CHAINS[id].stages.length;
+    out[id] = toInt(raw[id], 0, total, 0);
+  }
+  return out;
+}
+
 function sanitizeRun(raw) {
   var base = stateApi.createDefaultState(Date.now()).run;
   if (!raw || typeof raw !== "object" || raw.active !== true) return base;
@@ -8407,6 +9494,15 @@ function sanitizeRun(raw) {
     recentEvents: Array.isArray(raw.recentEvents)
       ? raw.recentEvents.filter(function (id) { return typeof id === "string"; }).slice(0, 3)
       : [],
+    chains: sanitizeChains(raw.chains),
+    eventChain: raw.eventChain && typeof raw.eventChain === "object"
+      ? {
+        id: typeof raw.eventChain.id === "string" ? raw.eventChain.id.slice(0, 24) : null,
+        name: typeof raw.eventChain.name === "string" ? raw.eventChain.name.slice(0, 20) : null,
+        stage: toInt(raw.eventChain.stage, 1, 9, 1),
+        total: toInt(raw.eventChain.total, 1, 9, 3)
+      }
+      : null,
     stats: {
       battlesWon: toInt(raw.stats && raw.stats.battlesWon, 0, 9999, 0),
       damageDealt: toInt(raw.stats && raw.stats.damageDealt, 0, 999999, 0),
@@ -9700,9 +10796,9 @@ function createStubContext() {
   };
   var methods = [
     "save", "restore", "scale", "translate", "rotate", "transform", "setTransform",
-    "beginPath", "closePath", "moveTo", "lineTo", "arc", "arcTo", "rect", "quadraticCurveTo",
-    "bezierCurveTo", "fill", "stroke", "clip", "fillRect", "strokeRect", "clearRect",
-    "fillText", "strokeText", "drawImage", "putImageData"
+    "beginPath", "closePath", "moveTo", "lineTo", "arc", "arcTo", "ellipse", "rect",
+    "quadraticCurveTo", "bezierCurveTo", "fill", "stroke", "clip", "fillRect", "strokeRect",
+    "clearRect", "fillText", "strokeText", "drawImage", "putImageData"
   ];
   methods.forEach(function (name) {
     ctx[name] = noop;
