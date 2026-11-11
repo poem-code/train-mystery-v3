@@ -133,6 +133,9 @@ tools/
   gen-audio.py           程序合成音效与 BGM
   build-bundle.js        把 js/ 打成浏览器可跑的 bundle（仅本地预览用）
   preview.html           注入假 tt 的本地预览，跑的是真机同一套分支
+  deploy-preview.sh      发布演示站到 gh-pages（走 git）
+  deploy-via-api.js      同上，但走 GitHub REST：本机到 github.com:443 被代理 502 时用
+  push-via-api.js        走 GitHub REST 推送本地提交（同上，仅网络受限时需要）
 
 docs/                    架构 / 内容表 / 调参手册 / 上线清单 / 完善方案
 ```
