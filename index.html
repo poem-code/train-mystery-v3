@@ -90,7 +90,8 @@
   };
 })();
 </script>
-<script src="./preview-bundle.js"></script>
+<!-- 带时间戳：改完 js/ 重新打包后，浏览器不会拿旧 bundle 给你看（曾因此误判「改了没生效」） -->
+<script>document.write('<script src="./preview-bundle.js?v=' + Date.now() + '"><\/script>');</script>
 <script>
 (function () {
   var q = new URLSearchParams(location.search);
@@ -209,6 +210,7 @@
           var hpVal = def.hp ? def.hp[0] : def.hpRange[1];
           b.enemyId = def.id;
           b.name = def.name;
+          b.material = def.material;
           b.trait = def.trait;
           b.figure = def.figure;
           b.color = def.color;
@@ -218,6 +220,8 @@
           b.damageRange = def.damageRange.slice();
           b.boss = def.kind === "boss";
           b.elite = def.kind === "elite";
+          // kind 也要跟着换：首行的「精英战斗 / BOSS 战」读的是它，不改会显示成遭遇战
+          b.kind = def.kind;
           b.logs[0] = def.intro || "战斗开始。";
         }
       }

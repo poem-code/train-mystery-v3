@@ -2514,6 +2514,9 @@ define("js/game/data/enemies.js", function(module, exports, require) {
  * data/enemies.js —— 敌人模板
  *
  * 字段：
+ * - material: 受击材质（metal / flesh / cloth / void，决定打击音色与粒子色；
+ *             纯表现，不参与任何数值。新增敌人必须给，缺省会被测试标记）
+ * - themes:   车厢主题权重标签（可选，命中的主题下更容易抽到）
  * - trait:     行为特性（决定 enemyTurn / battleAction 的分支）
  * - figure:    剪影形状（normal / elite / boss）
  * - hpRange:   血量区间（普通怪用，随机取值）
@@ -2532,6 +2535,7 @@ var ENEMIES = [
   /* ---------------- 普通 ---------------- */
   {
     id: "strayHound",
+    material: "flesh",
     name: "反击猎犬",
     kind: "normal",
     trait: "wolf",
@@ -2545,6 +2549,7 @@ var ENEMIES = [
   },
   {
     id: "guardConstruct",
+    material: "metal",
     name: "坚守构体",
     kind: "normal",
     trait: "idol",
@@ -2558,7 +2563,7 @@ var ENEMIES = [
   },
   {
     id: "shallowWisp",
-
+    material: "cloth",
     themes: ["frost"],
     name: "浅域游魂",
     kind: "normal",
@@ -2573,6 +2578,7 @@ var ENEMIES = [
   },
   {
     id: "noiseStalker",
+    material: "cloth",
     name: "噪响潜伏者",
     kind: "normal",
     trait: "assassin",
@@ -2586,6 +2592,7 @@ var ENEMIES = [
   },
   {
     id: "rustScavenger",
+    material: "metal",
     name: "锈蚀拾荒者",
     kind: "normal",
     trait: "armored",
@@ -2599,7 +2606,7 @@ var ENEMIES = [
   },
   {
     id: "corpseLamp",
-
+    material: "void",
     themes: ["ember"],
     name: "尸灯",
     kind: "normal",
@@ -2614,6 +2621,7 @@ var ENEMIES = [
   },
   {
     id: "beetleSwarm",
+    material: "flesh",
     name: "甲虫群",
     kind: "normal",
     trait: "swarm",
@@ -2627,7 +2635,7 @@ var ENEMIES = [
   },
   {
     id: "glassEcho",
-
+    material: "metal",
     themes: ["frost"],
     name: "玻璃回响",
     kind: "normal",
@@ -2642,7 +2650,7 @@ var ENEMIES = [
   },
   {
     id: "cinderHound",
-
+    material: "flesh",
     themes: ["ember"],
     name: "灰烬猎犬",
     kind: "normal",
@@ -2657,6 +2665,7 @@ var ENEMIES = [
   },
   {
     id: "ticketGhost",
+    material: "cloth",
     name: "检票幽灵",
     kind: "normal",
     trait: "wisp",
@@ -2670,7 +2679,7 @@ var ENEMIES = [
   },
   {
     id: "ironMoth",
-
+    material: "metal",
     themes: ["frost"],
     name: "铁翼蛾",
     kind: "normal",
@@ -2685,7 +2694,7 @@ var ENEMIES = [
   },
   {
     id: "wailingBride",
-
+    material: "flesh",
     themes: ["frost"],
     name: "哀鸣新娘",
     kind: "normal",
@@ -2702,6 +2711,7 @@ var ENEMIES = [
   /* ---------------- 精英 ---------------- */
   {
     id: "riftHunter",
+    material: "void",
     name: "裂隙执猎者",
     kind: "elite",
     trait: "assassin",
@@ -2715,6 +2725,7 @@ var ENEMIES = [
   },
   {
     id: "ironWarden",
+    material: "metal",
     name: "铁锈守望",
     kind: "elite",
     trait: "idol",
@@ -2728,6 +2739,7 @@ var ENEMIES = [
   },
   {
     id: "shardGolem",
+    material: "metal",
     name: "碎片魔像",
     kind: "elite",
     trait: "armored",
@@ -2741,7 +2753,7 @@ var ENEMIES = [
   },
   {
     id: "twinEcho",
-
+    material: "void",
     themes: ["frost"],
     name: "双生回响",
     kind: "elite",
@@ -2758,6 +2770,7 @@ var ENEMIES = [
   /* ---------------- Boss ---------------- */
   {
     id: "riftWarden",
+    material: "void",
     name: "裂隙看守者",
     kind: "boss",
     trait: "overlord",
@@ -2771,6 +2784,7 @@ var ENEMIES = [
   },
   {
     id: "facelessConductor",
+    material: "void",
     name: "无面车长",
     kind: "boss",
     trait: "overlord",
@@ -2784,7 +2798,7 @@ var ENEMIES = [
   },
   {
     id: "rustStoker",
-
+    material: "metal",
     themes: ["ember"],
     name: "锈血司炉",
     kind: "boss",
@@ -2813,7 +2827,7 @@ var ENEMIES = [
   /* ---------------- 普通 · 第二批 ---------------- */
   {
     id: "threadWeaver",
-
+    material: "cloth",
     themes: ["frost"],
     name: "织网蛛",
     kind: "normal",
@@ -2828,6 +2842,7 @@ var ENEMIES = [
   },
   {
     id: "broodHost",
+    material: "flesh",
     name: "育卵客",
     kind: "normal",
     trait: "parasite",
@@ -2841,7 +2856,7 @@ var ENEMIES = [
   },
   {
     id: "frenziedMiner",
-
+    material: "flesh",
     themes: ["ember"],
     name: "狂乱矿工",
     kind: "normal",
@@ -2856,6 +2871,7 @@ var ENEMIES = [
   },
   {
     id: "boneGambler",
+    material: "flesh",
     name: "骸骨赌徒",
     kind: "normal",
     trait: "gambler",
@@ -2869,7 +2885,7 @@ var ENEMIES = [
   },
   {
     id: "ashPilgrim",
-
+    material: "cloth",
     themes: ["ember"],
     name: "灰烬朝圣者",
     kind: "normal",
@@ -2884,6 +2900,7 @@ var ENEMIES = [
   },
   {
     id: "chainHound",
+    material: "flesh",
     name: "锁链猎犬",
     kind: "normal",
     trait: "wolf",
@@ -2897,6 +2914,7 @@ var ENEMIES = [
   },
   {
     id: "rustPreacher",
+    material: "flesh",
     name: "锈蚀布道者",
     kind: "normal",
     trait: "vampire",
@@ -2912,7 +2930,7 @@ var ENEMIES = [
   /* ---------------- 精英 · 第二批 ---------------- */
   {
     id: "weaverMatron",
-
+    material: "cloth",
     themes: ["frost"],
     name: "织巢母体",
     kind: "elite",
@@ -2927,7 +2945,7 @@ var ENEMIES = [
   },
   {
     id: "hollowKing",
-
+    material: "void",
     themes: ["ember"],
     name: "空洞之王",
     kind: "elite",
@@ -2944,6 +2962,7 @@ var ENEMIES = [
   /* ---------------- Boss · 第二批 ---------------- */
   {
     id: "brokenSwitchman",
+    material: "metal",
     name: "断轨扳道工",
     kind: "boss",
     trait: "gambler",
@@ -2957,6 +2976,7 @@ var ENEMIES = [
   },
   {
     id: "thePassenger",
+    material: "flesh",
     name: "那位乘客",
     kind: "boss",
     trait: "parasite",
@@ -4266,6 +4286,121 @@ module.exports = {
 
 });
 
+define("js/game/data/materials.js", function(module, exports, require) {
+/**
+ * data/materials.js —— 敌人「材质」与受击音效分层
+ *
+ * 为什么需要这一层：
+ * 打一坨铁、打一团肉、打一片布、打一个虚影，如果听感完全一样，
+ * 30 个敌人在手感上就退化成同一个靶子。材质字段把「听觉身份」交给数据，
+ * 战斗代码只负责按材质取音层，不关心具体是哪个敌人。
+ *
+ * 约定：
+ * - 材质是**纯表现**，不许参与任何数值计算（伤害、减伤、抗性都不行）。
+ *   一旦参与数值，它就变成第 5 个属性，玩家得记住 30 个敌人的抗性表。
+ * - 音层由「通用层 + 材质层」拼出来，而不是每个敌人各配一条音轨：
+ *   4 个材质 × 2 种强度 = 8 条，换成逐敌人配就是 60 条，包体直接爆。
+ * - 未知材质一律回退 DEFAULT，读档不会因为字段缺失变哑。
+ *
+ * 字段：
+ * - id / name   内部标识与界面显示名
+ * - hit         材质层音效名（对应 assets/audio/<hit>.wav）
+ * - spark       受击粒子色（与音色同一个隐喻：铁是冷白、肉是暖红、布是土黄、虚空是紫）
+ * - desc        图鉴/说明里的一句话
+ */
+
+var DEFAULT = "flesh";
+
+var LIST = [
+  {
+    id: "metal",
+    name: "金属",
+    hit: "hit_metal",
+    spark: "#DCE8F2",
+    desc: "铁皮与齿轮，声音脆、余响长"
+  },
+  {
+    id: "flesh",
+    name: "血肉",
+    hit: "hit_flesh",
+    spark: "#FFB199",
+    desc: "湿润的闷响，低频压手"
+  },
+  {
+    id: "cloth",
+    name: "丝布",
+    hit: "hit_cloth",
+    spark: "#CFBB92",
+    desc: "干涩的摩擦，像抽在旧帆布上"
+  },
+  {
+    id: "void",
+    name: "虚空",
+    hit: "hit_void",
+    spark: "#B79BE8",
+    desc: "声音往下坠，像是被打进了水里"
+  }
+];
+
+var BY_ID = {};
+(function () {
+  var i;
+  for (i = 0; i < LIST.length; i += 1) BY_ID[LIST[i].id] = LIST[i];
+})();
+
+function ids() {
+  var out = [];
+  var i;
+  for (i = 0; i < LIST.length; i += 1) out.push(LIST[i].id);
+  return out;
+}
+
+function isId(id) {
+  return !!(id && BY_ID[id]);
+}
+
+/** 未知/缺失一律回退，绝不返回 null——返回 null 会让调用处到处判空 */
+function getById(id) {
+  return BY_ID[id] || BY_ID[DEFAULT];
+}
+
+function nameOf(id) {
+  return getById(id).name;
+}
+
+/**
+ * 受击音层。
+ * - 普通命中：材质层单独出声
+ * - 重击：通用「crit」打底（低频冲击负责重量）+ 材质层降低音量补质感
+ *   反过来（材质层打底）会听不出重击，因为材质音都很短
+ *
+ * 返回数组而不是单个名字，是为了让调用处直接 for 循环播放，
+ * 将来加「破盾层」「属性层」不用再改调用处签名。
+ */
+function layersFor(id, opts) {
+  var material = getById(id);
+  var crit = !!(opts && opts.crit);
+  if (crit) {
+    return [
+      { name: "crit", volume: 0.78 },
+      { name: material.hit, volume: 0.40 }
+    ];
+  }
+  return [{ name: material.hit, volume: 0.66 }];
+}
+
+module.exports = {
+  LIST: LIST,
+  DEFAULT: DEFAULT,
+  ids: ids,
+  isId: isId,
+  getById: getById,
+  nameOf: nameOf,
+  layersFor: layersFor
+};
+
+});
+
 define("js/game/data/nodes.js", function(module, exports, require) {
 /**
  * data/nodes.js —— 路线节点类型定义（视觉与文案的唯一来源）
@@ -5080,6 +5215,7 @@ var ui = require("../../core/ui");
 var common = require("../ui-common");
 var stateApi = require("../state");
 var config = require("../config");
+var materialsApi = require("../data/materials");
 
 var P = draw.PALETTE;
 
@@ -5125,8 +5261,10 @@ function render(ctx, screen, state, animator) {
   var innerW = r.w - pad * 2;
   var cursor = r.y + pad;
 
-  // 类型 + 回合
-  draw.text(ctx, actionLabel(battle.kind), left, cursor, {
+  // 类型 + 材质 + 回合
+  // 材质放在这一行而不是另起一行：它是「说明这刀打上去是什么手感」的注脚，
+  // 不该占用垂直空间（战斗面板的每一像素都要留给日志）
+  draw.text(ctx, actionLabel(battle.kind) + " · " + materialsApi.nameOf(battle.material), left, cursor, {
     size: screen.fz(10),
     bold: true,
     color: battle.boss ? "#FF8B7A" : battle.elite ? "#E88A7D" : P.inkFaint
@@ -5464,6 +5602,9 @@ function onAction(action, state, app) {
     var afterBattle = state.run && state.run.battle;
     var dealt = enemyHpBefore - (afterBattle ? afterBattle.hp : 0);
     if (dealt > 0) {
+      // 材质决定「这一刀打的是什么」：铁是冷白火星、肉是暖红血雾、布是土黄碎屑、虚空是紫色残光。
+      // 音色与粒子色共用同一个材质字段，玩家的视觉与听觉指向同一件事。
+      var spark = materialsApi.getById(battleBefore && battleBefore.material).spark;
       if (fx) {
         var big = dealt >= 20;
         fx.float(hp.x, hp.y - px(8), "-" + dealt, {
@@ -5474,7 +5615,7 @@ function onAction(action, state, app) {
         });
         fx.burst(hp.x, hp.y, {
           count: big ? 20 : 12,
-          color: big ? "#F2CD84" : "#FFB199",
+          color: spark,
           speed: big ? 240 : 165,
           life: 460,
           size: px(3)
@@ -5487,7 +5628,14 @@ function onAction(action, state, app) {
           fx.shake(px(4), 150);
         }
       }
-      if (app.sound) app.sound(dealt >= 20 ? "crit" : "hit", dealt >= 20 ? 0.85 : 0.65);
+      // 音层由数据决定：普通命中只出材质层，重击叠一层通用低频
+      if (app.sound) {
+        var layers = materialsApi.layersFor(battleBefore && battleBefore.material, { crit: dealt >= 20 });
+        var li;
+        for (li = 0; li < layers.length; li += 1) {
+          app.sound(layers[li].name, layers[li].volume);
+        }
+      }
     }
     // 打在护盾上：没有血条变化，但要告诉玩家「被挡了」
     if (dealt <= 0 && result.ok && (command === "precise" || command === "power")) {
@@ -5818,6 +5966,7 @@ var common = require("../ui-common");
 var stateApi = require("../state");
 var config = require("../config");
 var enemiesApi = require("../data/enemies");
+var materialsApi = require("../data/materials");
 var relicsApi = require("../data/relics");
 var relicSetsApi = require("../data/relicSets");
 var enhApi = require("../data/enhancements");
@@ -5857,7 +6006,10 @@ function buildRows(state, tab) {
         name: entry && entry.seen ? enemy.name : "？？？",
         unlocked: !!(entry && entry.seen),
         desc: entry && entry.seen
-          ? (entry.defeats > 0 ? "已击败 " + entry.defeats + " 次" : "已遇见，尚未击败") + " · " + (enemy.intro || "无额外特性")
+          // 材质写在最前面：它是玩家在战斗里能「听出来」的属性，图鉴里得能对上号
+          ? "「" + materialsApi.nameOf(enemy.material) + "」" +
+            (entry.defeats > 0 ? "已击败 " + entry.defeats + " 次" : "已遇见，尚未击败") +
+            " · " + (enemy.intro || "无额外特性")
           : "尚未遇见",
         color: entry && entry.seen ? enemy.color : P.inkFaint
       });
@@ -7505,14 +7657,31 @@ function createRng(seed) {
   };
 }
 
-/** 全局默认随机（战斗伤害用，不需要复现） */
+/**
+ * 全局默认随机（战斗伤害用，不需要复现）。
+ * 注意：这里的种子在**模块加载时**取 Date.now()，早于任何调用方——
+ * 所以「想复现一场战斗」必须调 reseed()，改 Date.now 是没用的。
+ */
 var globalRng = createRng(Date.now() & 0x7FFFFFFF);
+
+/** 重新播种全局随机：用于复现某次战斗，或让自动化测试稳定 */
+function reseed(seed) {
+  globalRng = createRng(seed);
+}
+
+// 转发而不是直接导出实例的方法：reseed 换了实例之后，这些引用必须跟着换
+function int(min, max) { return globalRng.int(min, max); }
+function pick(list) { return globalRng.pick(list); }
+function shuffle(list) { return globalRng.shuffle(list); }
+function weighted(weights) { return globalRng.weighted(weights); }
 
 module.exports = {
   createRng: createRng,
-  int: globalRng.int,
-  pick: globalRng.pick,
-  shuffle: globalRng.shuffle
+  reseed: reseed,
+  int: int,
+  pick: pick,
+  shuffle: shuffle,
+  weighted: weighted
 };
 
 });
@@ -8947,6 +9116,8 @@ function startBattle(state, kind) {
     kind: kind,
     enemyId: template.id,
     name: template.name,
+    // 材质只是表现层（打击音色 + 粒子色），存进战斗对象是为了读档后音画不丢
+    material: template.material,
     figure: template.figure,
     color: template.color,
     trait: template.trait,
@@ -9973,6 +10144,8 @@ define("js/game/storage.js", function(module, exports, require) {
 var config = require("./config");
 var stateApi = require("./state");
 var themesApi = require("./data/themes");
+var materialsApi = require("./data/materials");
+var enemiesApi = require("./data/enemies");
 var platform = require("../platform/platform");
 
 var SCENES = { home: 1, train: 1, route: 1 };
@@ -10225,6 +10398,18 @@ function sanitizeEffects(raw) {
   return base;
 }
 
+/**
+ * 战斗材质：存档里可能没有（0.6 及更早的档）、也可能被改坏。
+ * 优先信任合法值，其次按 enemyId 反查模板，最后回退材质默认值。
+ * 这里绝不允许失败——材质只是表现层，读档不能因为它整局作废。
+ */
+function materialOf(raw) {
+  if (materialsApi.isId(raw.material)) return raw.material;
+  var template = enemiesApi.getById(raw.enemyId);
+  if (template && materialsApi.isId(template.material)) return template.material;
+  return materialsApi.DEFAULT;
+}
+
 function sanitizeBattle(raw) {
   if (!raw || typeof raw !== "object") return null;
   var maxHp = toInt(raw.maxHp, 1, 9999, 1);
@@ -10235,6 +10420,8 @@ function sanitizeBattle(raw) {
     kind: raw.kind === "elite" ? "elite" : raw.kind === "boss" ? "boss" : "normal",
     enemyId: typeof raw.enemyId === "string" ? raw.enemyId : "strayHound",
     name: typeof raw.name === "string" ? raw.name.slice(0, 20) : "未知敌人",
+    // 材质只影响音色与粒子色：字段坏了就按 enemyId 反查模板，查不到回退默认
+    material: materialOf(raw),
     figure: raw.figure === "boss" ? "boss" : raw.figure === "elite" ? "elite" : "normal",
     color: typeof raw.color === "string" ? raw.color : "#9FB0BA",
     trait: typeof raw.trait === "string" ? raw.trait : "normal",
@@ -11193,9 +11380,18 @@ define("js/platform/audio.js", function(module, exports, require) {
  * - 关音效只关播放，不销毁实例，切回来立刻有声。
  */
 
+/**
+ * 音效清单 = assets/audio 里实际存在的文件。
+ * 名字写错了不会报错，只会静默无声——所以 test-headless 会校验
+ * 「数据层引用的音效名都在这里，且对应 wav 文件真的存在」。
+ *
+ * hit_* 是打击的材质层（见 game/data/materials.js）：
+ * 同一套「出手」动作，打铁、打肉、打布、打虚空听感必须不同。
+ */
 var SOUND_NAMES = [
   "tap", "bow", "hit", "crit", "shield", "heal",
-  "coin", "win", "lose", "step", "select", "alert"
+  "coin", "win", "lose", "step", "select", "alert",
+  "hit_metal", "hit_flesh", "hit_cloth", "hit_void"
 ];
 
 var DEFAULT_BASE = "assets/audio/";
@@ -11211,7 +11407,6 @@ function createAudio(options) {
   var pools = {};
   var cursor = {};
   var enabled = opts.enabled !== false;
-  var ready = false;
 
   function url(name) {
     return base + name + ".wav";
@@ -11242,28 +11437,35 @@ function createAudio(options) {
     return null;
   }
 
-  function init() {
-    if (ready) return;
-    ready = true;
-    if (isNodeEnv) return;
-    var i;
-    for (i = 0; i < SOUND_NAMES.length; i += 1) {
-      var name = SOUND_NAMES[i];
-      var list = [];
+  /**
+   * 按需建池：只有真的播到某个音效时才建它的实例。
+   * 一次性把 16 个音效全建出来会瞬间占用 32 个 InnerAudioContext，
+   * 低端机上容易撞到宿主上限（超出的会静默失败，听起来像「音效丢了」）。
+   */
+  function buildPool(name) {
+    if (pools[name]) return pools[name];
+    var list = [];
+    if (!isNodeEnv) {
       var k;
       for (k = 0; k < poolSize; k += 1) {
         var item = buildOne(name);
         if (item) list.push(item);
       }
-      pools[name] = list;
-      cursor[name] = 0;
     }
+    pools[name] = list;
+    cursor[name] = 0;
+    return list;
+  }
+
+  /** 预热（可选）：想提前建满所有池时调用，正常流程不需要 */
+  function init() {
+    var i;
+    for (i = 0; i < SOUND_NAMES.length; i += 1) buildPool(SOUND_NAMES[i]);
   }
 
   function play(name, volume) {
     if (!enabled) return;
-    init();
-    var list = pools[name];
+    var list = buildPool(name);
     if (!list || !list.length) return;
     var index = cursor[name] % list.length;
     cursor[name] = index + 1;
