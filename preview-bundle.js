@@ -225,14 +225,24 @@ function bar(ctx, rect, ratio, opts) {
  * ------------------------------------------------------------------ */
 
 /** 地面投影：没有影子，任何剪影都像浮在空中 */
-function figShadow(ctx, cx, cy, size) {
+/**
+ * 落地投影。
+ * lift = 身体离地高度（px），影子跟着缩小、变淡——
+ * 少了这一步，上下浮动的角色看起来像「贴纸在抖」而不是「站在地上呼吸」。
+ */
+function figShadow(ctx, cx, cy, size, lift) {
+  var k = 1;
+  if (lift > 0) {
+    k = 1 - lift / (size * 0.75);
+    if (k < 0.5) k = 0.5;
+  }
   ctx.save();
-  ctx.globalAlpha = 0.30;
+  ctx.globalAlpha = 0.30 * k;
   ctx.fillStyle = "#04090D";
   ctx.translate(cx, cy + size * 0.44);
   ctx.scale(1, 0.22);
   ctx.beginPath();
-  ctx.arc(0, 0, size * 0.32, 0, Math.PI * 2);
+  ctx.arc(0, 0, size * 0.32 * k, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 }
@@ -792,11 +802,27 @@ var VARIANTS = {
  * 角色/敌人剪影。
  * variant 传敌人特性（trait）时按特性画轮廓；不传则回退到按 kind 的老剪影，
  * 保证任何遗漏都不会出现「空白敌人」。
+ *
+ * pose（可选）用来做待机/受击的形变，全部是「当帧算出来的量」，不存任何状态：
+ *   bob  —— 竖直位移（px，负数向上），呼吸时用
+ *   sx   —— 横向缩放，挤压帧用（1.12 表示横向摊开）
+ *   sy   —— 纵向缩放
+ * 形变只作用于身体，影子固定在地上并随 bob 收缩，否则浮空感会反过来。
  */
-function figure(ctx, cx, cy, size, kind, color, variant) {
+function figure(ctx, cx, cy, size, kind, color, variant, pose) {
   var c = color || PALETTE.teal;
-  figShadow(ctx, cx, cy, size);
+  var p = pose || {};
+  var bob = p.bob || 0;
+  var sx = p.sx === undefined ? 1 : p.sx;
+  var sy = p.sy === undefined ? 1 : p.sy;
+  figShadow(ctx, cx, cy, size, bob < 0 ? -bob : 0);
   ctx.save();
+  if (bob || sx !== 1 || sy !== 1) {
+    // 以脚底中心为基准做形变：横向摊开会压到地面，纵向压扁不会浮起来
+    ctx.translate(cx, cy + bob);
+    ctx.scale(sx, sy);
+    ctx.translate(-cx, -cy);
+  }
   var painter = variant && VARIANTS[variant];
   if (painter) {
     painter(ctx, cx, cy, size, c);
@@ -1054,17 +1080,26 @@ function createEngine(options) {
   var animator = tween.createAnimator();
   var fx = fxApi.createFx();
   var audio = options.audio || null;
+  /** 由业务层注入：当前视图是否需要持续重绘（例如战斗里的待机呼吸） */
+  var isLiveView = options.isLiveView || null;
   var toasts = [];
   /**
    * 帧统计：低端机上「卡不卡」需要能被量出来，而不是靠感觉。
    * 只做计数与最近一次的耗时，不参与渲染，也不占额外定时器。
    */
-  var perf = { frames: 0, slowFrames: 0, renderMs: 0, worstRenderMs: 0, sampleStart: 0, fps: 0, windowFrames: 0 };
+  var perf = { frames: 0, slowFrames: 0, renderMs: 0, worstRenderMs: 0, sampleStart: 0, fps: 0, windowFrames: 0, paints: 0 };
   var dirty = true;
   var lastFrameAt = 0;
   var elapsed = 0;
   var running = false;
   var transitions = { alpha: 1, key: "boot" };
+  /**
+   * 待机动画的节拍：累计毫秒（喂给渲染层算相位）与上一次「为待机而重绘」的时刻。
+   * 待机动作不需要 60fps，12.5fps 就足够顺，电池和发热却差一个量级。
+   */
+  var clock = 0;
+  var lastLivePaint = 0;
+  var LIVE_INTERVAL_MS = 80;
 
   function invalidate() {
     dirty = true;
@@ -1119,6 +1154,7 @@ function createEngine(options) {
   function render() {
     var state = getState();
     elapsed += 1;
+    perf.paints += 1;
     ui.beginFrame(screen, elapsed);
 
     var sceneId = getSceneId(state);
@@ -1132,14 +1168,14 @@ function createEngine(options) {
       ctx.save();
       if (shake.x || shake.y) ctx.translate(shake.x, shake.y);
 
-      if (scene && scene.render) scene.render(ctx, screen, state, animator);
+      if (scene && scene.render) scene.render(ctx, screen, state, animator, clock);
       if (modal) {
         ctx.save();
         ctx.globalAlpha = 0.72;
         ctx.fillStyle = "#04090D";
         ctx.fillRect(0, 0, screen.width, screen.height);
         ctx.restore();
-        if (modal.render) modal.render(ctx, screen, state, animator);
+        if (modal.render) modal.render(ctx, screen, state, animator, clock);
       }
       // 特效画在弹窗之上：伤害飘字必须压在角色与卡片上层才看得见
       fx.render(ctx);
@@ -1233,22 +1269,12 @@ function createEngine(options) {
     return true;
   }
 
-  function frame(timestamp) {
-    if (!running) return;
-    var now = typeof timestamp === "number" ? timestamp : Date.now();
-    var dt = lastFrameAt ? Math.min(64, now - lastFrameAt) : 16;
-    lastFrameAt = now;
-
-    perf.frames += 1;
-    perf.windowFrames += 1;
-    if (dt > 40) perf.slowFrames += 1;
-    if (!perf.sampleStart) perf.sampleStart = now;
-    if (now - perf.sampleStart >= 1000) {
-      perf.fps = Math.round((perf.windowFrames * 1000) / (now - perf.sampleStart));
-      perf.windowFrames = 0;
-      perf.sampleStart = now;
-    }
-
+  /**
+   * 推进一帧：真实循环与无头测试共用这一条路径。
+   * （测试若自己另写一份，就会漏掉脏标记与节流逻辑，「跑得通」不代表线上跑得通）
+   */
+  function step(dt) {
+    clock += dt;
     animator.tick(dt);
     fx.tick(dt);
 
@@ -1267,8 +1293,14 @@ function createEngine(options) {
     // 特效在跑也必须持续重绘，否则粒子会定格
     if (fx.isActive()) dirty = true;
 
-    // 有动画在跑就必须继续画
-    if (animator.isRunning(transitions.key)) dirty = true;
+    // 任何补间在跑都要继续画：不能只盯转场那一个 key
+    if (animator.anyRunning()) dirty = true;
+
+    // 待机动画：只有当前视图声明「会动」时才持续重绘，且限速到 ~12fps
+    if (isLiveView && isLiveView(getState()) && clock - lastLivePaint >= LIVE_INTERVAL_MS) {
+      lastLivePaint = clock;
+      dirty = true;
+    }
 
     if (dirty) {
       dirty = false;
@@ -1277,6 +1309,25 @@ function createEngine(options) {
       perf.renderMs = Date.now() - renderStart;
       if (perf.renderMs > perf.worstRenderMs) perf.worstRenderMs = perf.renderMs;
     }
+  }
+
+  function frame(timestamp) {
+    if (!running) return;
+    var now = typeof timestamp === "number" ? timestamp : Date.now();
+    var dt = lastFrameAt ? Math.min(64, now - lastFrameAt) : 16;
+    lastFrameAt = now;
+
+    perf.frames += 1;
+    perf.windowFrames += 1;
+    if (dt > 40) perf.slowFrames += 1;
+    if (!perf.sampleStart) perf.sampleStart = now;
+    if (now - perf.sampleStart >= 1000) {
+      perf.fps = Math.round((perf.windowFrames * 1000) / (now - perf.sampleStart));
+      perf.windowFrames = 0;
+      perf.sampleStart = now;
+    }
+
+    step(dt);
 
     if (typeof requestAnimationFrame === "function") {
       requestAnimationFrame(frame);
@@ -1317,15 +1368,26 @@ function createEngine(options) {
       return "fps=" + perf.fps + " 渲染=" + perf.renderMs + "ms(最差 " + perf.worstRenderMs +
         "ms) 帧数=" + perf.frames + " 慢帧=" + perf.slowFrames;
     },
+    /** 诊断用：累计绘制次数（待机节流是否生效靠它量） */
+    getPaintCount: function () {
+      return perf.paints;
+    },
+    /** 诊断用：喂给渲染层的累计毫秒 */
+    getClock: function () {
+      return clock;
+    },
     clearToasts: function () {
       toasts.length = 0;
       invalidate();
     },
-    /** 无头测试用：手动推进一帧 */
+    /** 无头测试用：强制重绘一帧（等价于「有输入发生」） */
     __tick: function (dt) {
-      animator.tick(dt || 16);
-      fx.tick(dt || 16);
-      render();
+      dirty = true;
+      step(dt || 16);
+    },
+    /** 无头测试用：不强制重绘，只推进时钟——用来验证脏标记与待机节流 */
+    __step: function (dt) {
+      step(dt || 16);
     }
   };
 }
@@ -1778,6 +1840,19 @@ function createAnimator() {
     return !!anims[key];
   }
 
+  /**
+   * 是否有任意补间在跑。
+   * 引擎需要靠它判断「还要不要再画一帧」——之前只看转场那一个 key，
+   * 受击后坐力这类补间只能蹭粒子的重绘顺风车，粒子早停了就卡在中间帧。
+   */
+  function anyRunning() {
+    var key;
+    for (key in anims) {
+      if (Object.prototype.hasOwnProperty.call(anims, key)) return true;
+    }
+    return false;
+  }
+
   function clear() {
     anims = {};
   }
@@ -1788,6 +1863,7 @@ function createAnimator() {
     tick: tick,
     progress: progress,
     isRunning: isRunning,
+    anyRunning: anyRunning,
     clear: clear
   };
 }
@@ -5232,7 +5308,7 @@ function actionLabel(kind) {
   return "遭遇战";
 }
 
-function render(ctx, screen, state, animator) {
+function render(ctx, screen, state, animator, clock) {
   var s = screen.s;
   var run = state.run;
   var battle = run && run.battle;
@@ -5324,12 +5400,46 @@ function render(ctx, screen, state, animator) {
   var enemyX = r.x + r.w * 0.68;
   var heroX = left + screen.px(20);
 
-  // 受击后坐力：被打中时敌人往后一顿再弹回（用补间进度驱动，不额外存状态）
-  var recoil = animator.progress("battlefx");
+  /**
+   * 待机与打击动画。三个 key 各管一件事：
+   *   enemyHit  —— 敌人挨打的挤压 + 后坐（同一个 key 驱动位移与形变，才同步）
+   *   enemyLunge —— 敌人扑咬时向玩家方向冲出去
+   *   heroHurt  —— 玩家挨打时向左一顿
+   */
+  var recoil = animator.progress("enemyHit");
   var kick = recoil < 1 ? (1 - recoil) * screen.px(9) : 0;
   var enemySize = battle.boss ? screen.px(104) : screen.px(80);
-  draw.figure(ctx, enemyX + kick, stageCenter, enemySize, battle.figure, battle.color, battle.trait);
-  draw.figure(ctx, heroX, stageCenter, screen.px(48), "hero", P.teal, "hero");
+
+  /**
+   * 待机呼吸：相位完全由 clock 推出，界面不存任何动画状态。
+   * 敌人与玩家相位错开约 0.6 拍——同频起伏会让两个剪影看起来像连在一起。
+   * 幅度只有 2px 左右：这是「活的」暗示，不是蹦迪，超过 4px 就会显得滑稽。
+   */
+  var breatheT = (typeof clock === "number" ? clock : 0) / 1000;
+  var enemyBreath = Math.sin(breatheT * Math.PI * 2 / 2.6);
+  var heroBreath = Math.sin(breatheT * Math.PI * 2 / 2.6 + Math.PI * 0.6);
+
+  // 受击挤压帧：p 从 0 走到 1，挤压量取 (1-p)；没在跑时 p === 1，挤压为 0
+  var hitP = animator.progress("enemyHit");
+  var squash = hitP < 1 ? 1 - hitP : 0;
+  // 敌人扑咬：朝玩家方向冲一下再收回（正弦包络，冲出去和收回来一样快）
+  var lungeP = animator.progress("enemyLunge");
+  var lunge = lungeP < 1 ? Math.sin(lungeP * Math.PI) : 0;
+  var hurtP = animator.progress("heroHurt");
+  var hurt = hurtP < 1 ? 1 - hurtP : 0;
+
+  draw.figure(ctx, enemyX + kick - lunge * screen.px(26), stageCenter, enemySize,
+    battle.figure, battle.color, battle.trait, {
+      bob: -screen.px(2.2) * enemyBreath,
+      sx: 1 + 0.14 * squash + 0.06 * lunge,
+      sy: 1 - 0.12 * squash - 0.04 * lunge
+    });
+  draw.figure(ctx, heroX - hurt * screen.px(5), stageCenter, screen.px(48),
+    "hero", P.teal, "hero", {
+      bob: -screen.px(1.6) * heroBreath,
+      sx: 1 + 0.10 * hurt,
+      sy: 1 - 0.09 * hurt
+    });
 
   layout.ex = enemyX;
   layout.ey = stageCenter - enemySize * 0.1;
@@ -5547,7 +5657,8 @@ function onAction(action, state, app) {
       }
       if (app.sound) app.sound("heal", 0.8);
       app.commit();
-      if (app.animator) app.animator.start("battlefx", 400);
+      // 旧代码在这里 start("battlefx")，但那颗补间是给「敌人受击」用的，
+      // 复活时让敌人无故后坐了一帧。复活只留光效，不动剪影。
     });
     return true;
   }
@@ -5636,6 +5747,8 @@ function onAction(action, state, app) {
           app.sound(layers[li].name, layers[li].volume);
         }
       }
+      // 受击帧：重击挤得更狠一点，和飘字/震屏是同一个「大」的判据
+      if (app.animator) app.animator.start("enemyHit", dealt >= 20 ? 300 : 230);
     }
     // 打在护盾上：没有血条变化，但要告诉玩家「被挡了」
     if (dealt <= 0 && result.ok && (command === "precise" || command === "power")) {
@@ -5662,6 +5775,11 @@ function onAction(action, state, app) {
       fx.shake(px(3), 130);
     }
     if (app.sound) app.sound("hit", 0.45);
+    // 敌人扑过来 + 玩家被顶退：两个补间同期跑，才像「它撞了你」而不是「你掉血了」
+    if (app.animator) {
+      app.animator.start("enemyLunge", 300);
+      app.animator.start("heroHurt", 240);
+    }
   }
 
   // 防御：给护盾一个可见的形状
@@ -11169,12 +11287,22 @@ function dispatch(action) {
 
 /* ---------------- 引擎 ---------------- */
 
+/**
+ * 哪些视图需要「待机动画」（即持续重绘）。
+ * 只有战斗值得：那里有活物在呼吸与扑咬。路线图、主界面都是静态排版，
+ * 为了一个呼吸动作把帧率与电池烧掉不划算——引擎会按 12fps 限速，但那是下限不是免费。
+ */
+function isLiveView(s) {
+  return s.current.modal === "battle";
+}
+
 engine = createEngine({
   canvas: canvas,
   ctx: ctx,
   screen: screen,
   platform: platform,
   audio: audio,
+  isLiveView: isLiveView,
   scenes: registry.scenes,
   modals: registry.modals,
   getState: function () { return state; },
@@ -11214,6 +11342,7 @@ platform.onWindowResize(function (info) {
     screen: screen,
     platform: platform,
     audio: audio,
+    isLiveView: isLiveView,
     scenes: registry.scenes,
     modals: registry.modals,
     getState: function () { return state; },
