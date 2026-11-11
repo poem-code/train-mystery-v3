@@ -193,14 +193,24 @@ function bar(ctx, rect, ratio, opts) {
  * ------------------------------------------------------------------ */
 
 /** 地面投影：没有影子，任何剪影都像浮在空中 */
-function figShadow(ctx, cx, cy, size) {
+/**
+ * 落地投影。
+ * lift = 身体离地高度（px），影子跟着缩小、变淡——
+ * 少了这一步，上下浮动的角色看起来像「贴纸在抖」而不是「站在地上呼吸」。
+ */
+function figShadow(ctx, cx, cy, size, lift) {
+  var k = 1;
+  if (lift > 0) {
+    k = 1 - lift / (size * 0.75);
+    if (k < 0.5) k = 0.5;
+  }
   ctx.save();
-  ctx.globalAlpha = 0.30;
+  ctx.globalAlpha = 0.30 * k;
   ctx.fillStyle = "#04090D";
   ctx.translate(cx, cy + size * 0.44);
   ctx.scale(1, 0.22);
   ctx.beginPath();
-  ctx.arc(0, 0, size * 0.32, 0, Math.PI * 2);
+  ctx.arc(0, 0, size * 0.32 * k, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 }
@@ -760,11 +770,27 @@ var VARIANTS = {
  * 角色/敌人剪影。
  * variant 传敌人特性（trait）时按特性画轮廓；不传则回退到按 kind 的老剪影，
  * 保证任何遗漏都不会出现「空白敌人」。
+ *
+ * pose（可选）用来做待机/受击的形变，全部是「当帧算出来的量」，不存任何状态：
+ *   bob  —— 竖直位移（px，负数向上），呼吸时用
+ *   sx   —— 横向缩放，挤压帧用（1.12 表示横向摊开）
+ *   sy   —— 纵向缩放
+ * 形变只作用于身体，影子固定在地上并随 bob 收缩，否则浮空感会反过来。
  */
-function figure(ctx, cx, cy, size, kind, color, variant) {
+function figure(ctx, cx, cy, size, kind, color, variant, pose) {
   var c = color || PALETTE.teal;
-  figShadow(ctx, cx, cy, size);
+  var p = pose || {};
+  var bob = p.bob || 0;
+  var sx = p.sx === undefined ? 1 : p.sx;
+  var sy = p.sy === undefined ? 1 : p.sy;
+  figShadow(ctx, cx, cy, size, bob < 0 ? -bob : 0);
   ctx.save();
+  if (bob || sx !== 1 || sy !== 1) {
+    // 以脚底中心为基准做形变：横向摊开会压到地面，纵向压扁不会浮起来
+    ctx.translate(cx, cy + bob);
+    ctx.scale(sx, sy);
+    ctx.translate(-cx, -cy);
+  }
   var painter = variant && VARIANTS[variant];
   if (painter) {
     painter(ctx, cx, cy, size, c);

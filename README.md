@@ -12,10 +12,11 @@ Canvas 全自绘，无 DOM 依赖，无第三方库，纯 ES5（`var` 到底）�
 
 ```bash
 # 1) 无头回归（不需要任何环境，Node 直接跑）
-node tools/test-headless.js          # 141 项
+node tools/test-headless.js          # 159 项
 
 # 2) 数值平衡模拟（批量跑局，统计通关率与死亡分布）
-node tools/sim-balance.js 300
+#    第三个参数是种子：做改前/改后对比时必须给同一个，否则 ±2.5pp 的随机抖动会误导判断
+node tools/sim-balance.js 1000 frost 20261111
 
 # 3) 本地视觉走查（浏览器打开，注入假 tt 对象，跑的是真机同一套分支）
 node tools/build-bundle.js
@@ -62,6 +63,7 @@ AppID 与广告位怎么申请、卡在哪一步，见 [`docs/DOUYIN_SETUP.md`](
 | `preview.html?modal=battle` | 直接进战斗 |
 | `preview.html?modal=battle&affix=frenzy` | 战斗界面强挂指定精英词缀 |
 | `preview.html?modal=battle&fx=1` | 打一拳后停在 80ms，检查伤害飘字与粒子位置 |
+| `preview.html?scene=route&modal=battle&enemy=ironWarden` | 指定敌人进战斗（看待机呼吸与受击帧） |
 | `preview.html?modal=enhance` / `shop` / `event` / `chest` / `camp` / `summary` | 对应弹窗 |
 | `preview.html?modal=settings` / `trainUpgrade` | 设置 / 列车升级 |
 | `preview.html?modal=info&view=collection` | 本局构筑图鉴（含遗物序列进度） |
@@ -129,8 +131,8 @@ assets/
   audio/                 16 个音效 + 3 首 BGM（合计约 934 KB，程序合成，无版权风险）
 
 tools/
-  test-headless.js       无头回归（141 项）
-  sim-balance.js         批量模拟，输出通关率与死亡分布
+  test-headless.js       无头回归（159 项）
+  sim-balance.js         批量模拟（局数/主题/种子），输出通关率与死亡分布
   gen-audio.py           程序合成音效与 BGM
   build-bundle.js        把 js/ 打成浏览器可跑的 bundle（仅本地预览用）
   preview.html           注入假 tt 的本地预览，跑的是真机同一套分支
@@ -177,7 +179,7 @@ docs/                    架构 / 内容表 / 调参手册 / 上线清单 / 完�
 - 存档：schema 4→5 迁移、白名单深合并、脏档自洽修补、地图按 seed 还原、每日限制按日期重推导
 - 平台：激励视频风控、分享、震动、前后台落盘、错误上报、音效/音乐双通道三态封装
 - **美术**：15 个按 trait 区分的矢量剪影原型（含织网/寄生/狂化/赌徒）+ 地面投影 + 高光弧 + 7 个几何节点字形 + 三层视差背景
-- **打击感**：伤害飘字、粒子溅射、震屏、闪白、受击后坐力、**4 种受击材质分层音效**（金属/血肉/丝布/虚空，重击再叠一层低频）、16 个程序合成音效、3 首循环 BGM
+- **打击感**：**待机呼吸与受击形变**（敌人挨打会挤、扑咬会冲、你会被顶退，纯过程化无图集）、伤害飘字、粒子溅射、震屏、闪白、受击后坐力、**4 种受击材质分层音效**（金属/血肉/丝布/虚空，重击再叠一层低频）、16 个程序合成音效、3 首循环 BGM
 - **可诊断**：环形日志（60 条）+ 环境快照 + 帧统计（fps / renderMs / 慢帧）+ 一键复制
 - 隐私说明 / 用户服务 / 玩法说明 / 关于（提审必备页）
 
@@ -185,8 +187,8 @@ docs/                    架构 / 内容表 / 调参手册 / 上线清单 / 完�
 
 | 手段 | 规模 | 结果 |
 |---|---|---|
-| `test-headless.js` | 141 项 | 141 / 141 通过 |
-| `sim-balance.js` | 千局 | 锈蚀 ~45% / 霜封 ~44.6% / 焚炉 ~40.6%，失败集中在 L9 Boss |
+| `test-headless.js` | 159 项 | 159 / 159 通过 |
+| `sim-balance.js` | 三套主题 × 3 个种子 × 1000 局 | 锈蚀 48.4% / 霜封 47.6% / 焚炉 42.3%（`sim-balance.js 1000 ember 20261111` 可复现） |
 
 测试覆盖：整机启动、全链路自动通关（Math.random 固定种子，结果可复现）、存档往返与迁移、脏档与越界点击、
 内容数据一致性（特性有分支 / 词缀字段有分支 / 效果字段有消费点 / 事件字段合法）、

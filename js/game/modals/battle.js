@@ -29,7 +29,7 @@ function actionLabel(kind) {
   return "遭遇战";
 }
 
-function render(ctx, screen, state, animator) {
+function render(ctx, screen, state, animator, clock) {
   var s = screen.s;
   var run = state.run;
   var battle = run && run.battle;
@@ -121,12 +121,46 @@ function render(ctx, screen, state, animator) {
   var enemyX = r.x + r.w * 0.68;
   var heroX = left + screen.px(20);
 
-  // 受击后坐力：被打中时敌人往后一顿再弹回（用补间进度驱动，不额外存状态）
-  var recoil = animator.progress("battlefx");
+  /**
+   * 待机与打击动画。三个 key 各管一件事：
+   *   enemyHit  —— 敌人挨打的挤压 + 后坐（同一个 key 驱动位移与形变，才同步）
+   *   enemyLunge —— 敌人扑咬时向玩家方向冲出去
+   *   heroHurt  —— 玩家挨打时向左一顿
+   */
+  var recoil = animator.progress("enemyHit");
   var kick = recoil < 1 ? (1 - recoil) * screen.px(9) : 0;
   var enemySize = battle.boss ? screen.px(104) : screen.px(80);
-  draw.figure(ctx, enemyX + kick, stageCenter, enemySize, battle.figure, battle.color, battle.trait);
-  draw.figure(ctx, heroX, stageCenter, screen.px(48), "hero", P.teal, "hero");
+
+  /**
+   * 待机呼吸：相位完全由 clock 推出，界面不存任何动画状态。
+   * 敌人与玩家相位错开约 0.6 拍——同频起伏会让两个剪影看起来像连在一起。
+   * 幅度只有 2px 左右：这是「活的」暗示，不是蹦迪，超过 4px 就会显得滑稽。
+   */
+  var breatheT = (typeof clock === "number" ? clock : 0) / 1000;
+  var enemyBreath = Math.sin(breatheT * Math.PI * 2 / 2.6);
+  var heroBreath = Math.sin(breatheT * Math.PI * 2 / 2.6 + Math.PI * 0.6);
+
+  // 受击挤压帧：p 从 0 走到 1，挤压量取 (1-p)；没在跑时 p === 1，挤压为 0
+  var hitP = animator.progress("enemyHit");
+  var squash = hitP < 1 ? 1 - hitP : 0;
+  // 敌人扑咬：朝玩家方向冲一下再收回（正弦包络，冲出去和收回来一样快）
+  var lungeP = animator.progress("enemyLunge");
+  var lunge = lungeP < 1 ? Math.sin(lungeP * Math.PI) : 0;
+  var hurtP = animator.progress("heroHurt");
+  var hurt = hurtP < 1 ? 1 - hurtP : 0;
+
+  draw.figure(ctx, enemyX + kick - lunge * screen.px(26), stageCenter, enemySize,
+    battle.figure, battle.color, battle.trait, {
+      bob: -screen.px(2.2) * enemyBreath,
+      sx: 1 + 0.14 * squash + 0.06 * lunge,
+      sy: 1 - 0.12 * squash - 0.04 * lunge
+    });
+  draw.figure(ctx, heroX - hurt * screen.px(5), stageCenter, screen.px(48),
+    "hero", P.teal, "hero", {
+      bob: -screen.px(1.6) * heroBreath,
+      sx: 1 + 0.10 * hurt,
+      sy: 1 - 0.09 * hurt
+    });
 
   layout.ex = enemyX;
   layout.ey = stageCenter - enemySize * 0.1;
@@ -344,7 +378,8 @@ function onAction(action, state, app) {
       }
       if (app.sound) app.sound("heal", 0.8);
       app.commit();
-      if (app.animator) app.animator.start("battlefx", 400);
+      // 旧代码在这里 start("battlefx")，但那颗补间是给「敌人受击」用的，
+      // 复活时让敌人无故后坐了一帧。复活只留光效，不动剪影。
     });
     return true;
   }
@@ -433,6 +468,8 @@ function onAction(action, state, app) {
           app.sound(layers[li].name, layers[li].volume);
         }
       }
+      // 受击帧：重击挤得更狠一点，和飘字/震屏是同一个「大」的判据
+      if (app.animator) app.animator.start("enemyHit", dealt >= 20 ? 300 : 230);
     }
     // 打在护盾上：没有血条变化，但要告诉玩家「被挡了」
     if (dealt <= 0 && result.ok && (command === "precise" || command === "power")) {
@@ -459,6 +496,11 @@ function onAction(action, state, app) {
       fx.shake(px(3), 130);
     }
     if (app.sound) app.sound("hit", 0.45);
+    // 敌人扑过来 + 玩家被顶退：两个补间同期跑，才像「它撞了你」而不是「你掉血了」
+    if (app.animator) {
+      app.animator.start("enemyLunge", 300);
+      app.animator.start("heroHurt", 240);
+    }
   }
 
   // 防御：给护盾一个可见的形状

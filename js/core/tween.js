@@ -58,6 +58,19 @@ function createAnimator() {
     return !!anims[key];
   }
 
+  /**
+   * 是否有任意补间在跑。
+   * 引擎需要靠它判断「还要不要再画一帧」——之前只看转场那一个 key，
+   * 受击后坐力这类补间只能蹭粒子的重绘顺风车，粒子早停了就卡在中间帧。
+   */
+  function anyRunning() {
+    var key;
+    for (key in anims) {
+      if (Object.prototype.hasOwnProperty.call(anims, key)) return true;
+    }
+    return false;
+  }
+
   function clear() {
     anims = {};
   }
@@ -68,6 +81,7 @@ function createAnimator() {
     tick: tick,
     progress: progress,
     isRunning: isRunning,
+    anyRunning: anyRunning,
     clear: clear
   };
 }

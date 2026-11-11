@@ -266,12 +266,22 @@ function dispatch(action) {
 
 /* ---------------- 引擎 ---------------- */
 
+/**
+ * 哪些视图需要「待机动画」（即持续重绘）。
+ * 只有战斗值得：那里有活物在呼吸与扑咬。路线图、主界面都是静态排版，
+ * 为了一个呼吸动作把帧率与电池烧掉不划算——引擎会按 12fps 限速，但那是下限不是免费。
+ */
+function isLiveView(s) {
+  return s.current.modal === "battle";
+}
+
 engine = createEngine({
   canvas: canvas,
   ctx: ctx,
   screen: screen,
   platform: platform,
   audio: audio,
+  isLiveView: isLiveView,
   scenes: registry.scenes,
   modals: registry.modals,
   getState: function () { return state; },
@@ -311,6 +321,7 @@ platform.onWindowResize(function (info) {
     screen: screen,
     platform: platform,
     audio: audio,
+    isLiveView: isLiveView,
     scenes: registry.scenes,
     modals: registry.modals,
     getState: function () { return state; },

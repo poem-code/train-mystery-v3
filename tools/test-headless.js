@@ -1242,6 +1242,154 @@ storage.save(sMat3);
 var sMat3Back = storage.load();
 ok("合法材质原样保留", sMat3Back.run.battle.material === "cloth", sMat3Back.run.battle.material);
 
+/* ---------------- 待机与打击动画 ---------------- */
+
+section("待机与打击动画");
+
+var tweenApiT = require("../js/core/tween");
+
+var tnA = tweenApiT.createAnimator();
+ok("空补间器 anyRunning 为假", tnA.anyRunning() === false, String(tnA.anyRunning()));
+tnA.start("enemyHit", 200);
+ok("启动后 anyRunning 为真", tnA.anyRunning() === true, String(tnA.anyRunning()));
+ok("未到期 progress 仍小于 1", tnA.progress("enemyHit") < 1, String(tnA.progress("enemyHit")));
+tnA.tick(240);
+ok("到期后 anyRunning 归假（否则引擎会一直重绘）", tnA.anyRunning() === false, String(tnA.anyRunning()));
+ok("到期后 progress 归一", tnA.progress("enemyHit") === 1, String(tnA.progress("enemyHit")));
+
+// 桩 ctx：只要能记下 translate/arc 的参数就够，渲染正确性靠截图走查
+function stubCtx() {
+  var rec = { translate: [], scale: [], arc: [] };
+  var ctx = {
+    save: function () {}, restore: function () {}, beginPath: function () {},
+    closePath: function () {}, fill: function () {}, stroke: function () {},
+    moveTo: function () {}, lineTo: function () {}, rect: function () {},
+    fillRect: function () {}, arcTo: function () {}, clip: function () {},
+    quadraticCurveTo: function () {},
+    measureText: function (t) { return { width: String(t).length * 6 }; },
+    fillText: function () {},
+    createLinearGradient: function () {
+      return { addColorStop: function () {} };
+    },
+    ellipse: function (x, y, rx) { rec.arc.push(rx); },
+    arc: function (x, y, r) { rec.arc.push(r); },
+    translate: function (x, y) { rec.translate.push([x, y]); },
+    scale: function (x, y) { rec.scale.push([x, y]); }
+  };
+  return { ctx: ctx, rec: rec };
+}
+
+var drawApiT = require("../js/core/draw");
+
+/** 影子自己会做一次 scale(1, 0.22) 把圆压成扁椭圆，断言身体形变时要把它排除 */
+function bodyScales(rec) {
+  return rec.scale.filter(function (s) {
+    return !(Math.abs(s[0] - 1) < 1e-9 && Math.abs(s[1] - 0.22) < 1e-9);
+  });
+}
+
+var poseBase = stubCtx();
+drawApiT.figure(poseBase.ctx, 100, 200, 80, "normal", "#fff", null);
+var baseTranslate = poseBase.rec.translate.length;
+ok("不传 pose 时只画影子、不加身体变换", bodyScales(poseBase.rec).length === 0,
+  JSON.stringify(poseBase.rec.scale));
+
+var poseBob = stubCtx();
+drawApiT.figure(poseBob.ctx, 100, 200, 80, "normal", "#fff", null, { bob: -10 });
+var bobbed = poseBob.rec.translate.filter(function (t) {
+  return Math.abs(t[1] - 190) < 0.001 && Math.abs(t[0] - 100) < 0.001;
+});
+ok("bob 生效：身体按 bob 上移", bobbed.length === 1 && bodyScales(poseBob.rec).length === 1,
+  JSON.stringify(poseBob.rec.translate));
+// 一次 translate(cx, cy+bob)、一次 translate(-cx, -cy)：绕脚底做形变要多两次平移
+ok("形变只多两次平移（不移影子的那份）",
+  poseBob.rec.translate.length === baseTranslate + 2,
+  poseBob.rec.translate.length + " vs " + baseTranslate);
+
+// 影子：离地越高越小越淡——否则浮空会像贴纸在抖
+var shadowRadius = function (rec) {
+  // 影子是第一个 arc，半径 = size * 0.32 * k
+  return rec.arc[0];
+};
+ok("离地时影子缩小", shadowRadius(poseBob.rec) < shadowRadius(poseBase.rec),
+  shadowRadius(poseBob.rec) + " vs " + shadowRadius(poseBase.rec));
+ok("影子不会缩到看不见（下限 0.5 倍）",
+  shadowRadius(poseBob.rec) >= 80 * 0.32 * 0.5 - 0.001, String(shadowRadius(poseBob.rec)));
+
+var poseSquash = stubCtx();
+drawApiT.figure(poseSquash.ctx, 100, 200, 80, "normal", "#fff", null, { sx: 1.14, sy: 0.88 });
+var squashScales = bodyScales(poseSquash.rec);
+ok("挤压帧按 sx/sy 缩放", squashScales.length === 1 &&
+  Math.abs(squashScales[0][0] - 1.14) < 1e-9 && Math.abs(squashScales[0][1] - 0.88) < 1e-9,
+  JSON.stringify(poseSquash.rec.scale));
+
+/* ---- 引擎：只有声明「会动」的视图才持续重绘，且限速 ---- */
+
+var engineT = T.getEngine();
+var liveStateT = getState();
+
+function paintsOver(steps, dt) {
+  var before = engineT.getPaintCount();
+  var i;
+  for (i = 0; i < steps; i += 1) engineT.__step(dt);
+  return engineT.getPaintCount() - before;
+}
+
+// 先回到静态界面。清掉残留的特效/补间/Toast：
+// 它们任意一个还活着都会让屏幕持续重绘，量到的就不是「待机节流」了
+liveStateT.current.modal = null;
+liveStateT.current.scene = "home";
+engineT.animator.clear();
+engineT.clearToasts();
+engineT.fx.clear();
+engineT.invalidate();
+engineT.__tick(16);
+var idlePaints = paintsOver(20, 16);
+ok("静态界面不为呼吸重绘", idlePaints === 0, String(idlePaints));
+
+// 进战斗：先手工造一场，别让自动游玩的历史状态干扰
+if (!liveStateT.run || !liveStateT.run.active) stateApi.startRun(liveStateT, Date.now());
+liveStateT.current.scene = "route";
+makeBattle(liveStateT, { trait: "none", damageRange: [0, 0], hp: 999, maxHp: 999 });
+engineT.animator.clear();
+engineT.clearToasts();
+engineT.fx.clear();
+engineT.invalidate();
+engineT.__tick(16);
+var livePaints = paintsOver(20, 16);
+// 20 帧 × 16ms = 320ms，节流 80ms 一帧 → 约 4 次；给一帧容差
+ok("战斗里按 ~12fps 持续重绘", livePaints >= 3 && livePaints <= 6, String(livePaints));
+ok("待机重绘远少于每帧（60fps 会烧电池）", livePaints < 20, String(livePaints));
+
+/* ---- 打击动作由事件触发，且不写任何玩法状态 ---- */
+
+var animT = engineT.animator;
+animT.clear();
+dispatch({ id: "battle:precise" });
+ok("命中触发敌人受击帧", animT.isRunning("enemyHit"), "keys=" + JSON.stringify(Object.keys(animT)));
+
+animT.clear();
+var hpBeforeT = liveStateT.player.hp;
+dispatch({ id: "battle:defend" });
+// damageRange [0,0] 打不动人，换成有伤害的敌人再挨一次
+makeBattle(liveStateT, { trait: "none", damageRange: [8, 8], hp: 999, maxHp: 999 });
+animT.clear();
+dispatch({ id: "battle:precise" });
+ok("敌人反击触发扑咬与玩家后退",
+  animT.isRunning("enemyLunge") && animT.isRunning("heroHurt"),
+  "lunge=" + animT.isRunning("enemyLunge") + " hurt=" + animT.isRunning("heroHurt"));
+
+var snapshotBefore = JSON.stringify(liveStateT.run) + JSON.stringify(liveStateT.player);
+var i2;
+for (i2 = 0; i2 < 40; i2 += 1) engineT.__step(16);
+var snapshotAfter = JSON.stringify(liveStateT.run) + JSON.stringify(liveStateT.player);
+ok("播动画不改任何玩法数值", snapshotBefore === snapshotAfter, "状态被改写了");
+ok("动画播完补间自动清空", animT.anyRunning() === false, String(animT.anyRunning()));
+
+// 收尾：把战斗结束掉，别把状态留给后面
+dispatch({ id: "battle:giveUp" });
+liveStateT.current.modal = null;
+
 /* ---------------- 汇总 ---------------- */
 console.log("\n" + "=".repeat(46));
 console.log("通过 " + PASS + " / " + (PASS + FAIL));

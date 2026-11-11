@@ -27,17 +27,26 @@ function createEngine(options) {
   var animator = tween.createAnimator();
   var fx = fxApi.createFx();
   var audio = options.audio || null;
+  /** 由业务层注入：当前视图是否需要持续重绘（例如战斗里的待机呼吸） */
+  var isLiveView = options.isLiveView || null;
   var toasts = [];
   /**
    * 帧统计：低端机上「卡不卡」需要能被量出来，而不是靠感觉。
    * 只做计数与最近一次的耗时，不参与渲染，也不占额外定时器。
    */
-  var perf = { frames: 0, slowFrames: 0, renderMs: 0, worstRenderMs: 0, sampleStart: 0, fps: 0, windowFrames: 0 };
+  var perf = { frames: 0, slowFrames: 0, renderMs: 0, worstRenderMs: 0, sampleStart: 0, fps: 0, windowFrames: 0, paints: 0 };
   var dirty = true;
   var lastFrameAt = 0;
   var elapsed = 0;
   var running = false;
   var transitions = { alpha: 1, key: "boot" };
+  /**
+   * 待机动画的节拍：累计毫秒（喂给渲染层算相位）与上一次「为待机而重绘」的时刻。
+   * 待机动作不需要 60fps，12.5fps 就足够顺，电池和发热却差一个量级。
+   */
+  var clock = 0;
+  var lastLivePaint = 0;
+  var LIVE_INTERVAL_MS = 80;
 
   function invalidate() {
     dirty = true;
@@ -92,6 +101,7 @@ function createEngine(options) {
   function render() {
     var state = getState();
     elapsed += 1;
+    perf.paints += 1;
     ui.beginFrame(screen, elapsed);
 
     var sceneId = getSceneId(state);
@@ -105,14 +115,14 @@ function createEngine(options) {
       ctx.save();
       if (shake.x || shake.y) ctx.translate(shake.x, shake.y);
 
-      if (scene && scene.render) scene.render(ctx, screen, state, animator);
+      if (scene && scene.render) scene.render(ctx, screen, state, animator, clock);
       if (modal) {
         ctx.save();
         ctx.globalAlpha = 0.72;
         ctx.fillStyle = "#04090D";
         ctx.fillRect(0, 0, screen.width, screen.height);
         ctx.restore();
-        if (modal.render) modal.render(ctx, screen, state, animator);
+        if (modal.render) modal.render(ctx, screen, state, animator, clock);
       }
       // 特效画在弹窗之上：伤害飘字必须压在角色与卡片上层才看得见
       fx.render(ctx);
@@ -206,22 +216,12 @@ function createEngine(options) {
     return true;
   }
 
-  function frame(timestamp) {
-    if (!running) return;
-    var now = typeof timestamp === "number" ? timestamp : Date.now();
-    var dt = lastFrameAt ? Math.min(64, now - lastFrameAt) : 16;
-    lastFrameAt = now;
-
-    perf.frames += 1;
-    perf.windowFrames += 1;
-    if (dt > 40) perf.slowFrames += 1;
-    if (!perf.sampleStart) perf.sampleStart = now;
-    if (now - perf.sampleStart >= 1000) {
-      perf.fps = Math.round((perf.windowFrames * 1000) / (now - perf.sampleStart));
-      perf.windowFrames = 0;
-      perf.sampleStart = now;
-    }
-
+  /**
+   * 推进一帧：真实循环与无头测试共用这一条路径。
+   * （测试若自己另写一份，就会漏掉脏标记与节流逻辑，「跑得通」不代表线上跑得通）
+   */
+  function step(dt) {
+    clock += dt;
     animator.tick(dt);
     fx.tick(dt);
 
@@ -240,8 +240,14 @@ function createEngine(options) {
     // 特效在跑也必须持续重绘，否则粒子会定格
     if (fx.isActive()) dirty = true;
 
-    // 有动画在跑就必须继续画
-    if (animator.isRunning(transitions.key)) dirty = true;
+    // 任何补间在跑都要继续画：不能只盯转场那一个 key
+    if (animator.anyRunning()) dirty = true;
+
+    // 待机动画：只有当前视图声明「会动」时才持续重绘，且限速到 ~12fps
+    if (isLiveView && isLiveView(getState()) && clock - lastLivePaint >= LIVE_INTERVAL_MS) {
+      lastLivePaint = clock;
+      dirty = true;
+    }
 
     if (dirty) {
       dirty = false;
@@ -250,6 +256,25 @@ function createEngine(options) {
       perf.renderMs = Date.now() - renderStart;
       if (perf.renderMs > perf.worstRenderMs) perf.worstRenderMs = perf.renderMs;
     }
+  }
+
+  function frame(timestamp) {
+    if (!running) return;
+    var now = typeof timestamp === "number" ? timestamp : Date.now();
+    var dt = lastFrameAt ? Math.min(64, now - lastFrameAt) : 16;
+    lastFrameAt = now;
+
+    perf.frames += 1;
+    perf.windowFrames += 1;
+    if (dt > 40) perf.slowFrames += 1;
+    if (!perf.sampleStart) perf.sampleStart = now;
+    if (now - perf.sampleStart >= 1000) {
+      perf.fps = Math.round((perf.windowFrames * 1000) / (now - perf.sampleStart));
+      perf.windowFrames = 0;
+      perf.sampleStart = now;
+    }
+
+    step(dt);
 
     if (typeof requestAnimationFrame === "function") {
       requestAnimationFrame(frame);
@@ -290,15 +315,26 @@ function createEngine(options) {
       return "fps=" + perf.fps + " 渲染=" + perf.renderMs + "ms(最差 " + perf.worstRenderMs +
         "ms) 帧数=" + perf.frames + " 慢帧=" + perf.slowFrames;
     },
+    /** 诊断用：累计绘制次数（待机节流是否生效靠它量） */
+    getPaintCount: function () {
+      return perf.paints;
+    },
+    /** 诊断用：喂给渲染层的累计毫秒 */
+    getClock: function () {
+      return clock;
+    },
     clearToasts: function () {
       toasts.length = 0;
       invalidate();
     },
-    /** 无头测试用：手动推进一帧 */
+    /** 无头测试用：强制重绘一帧（等价于「有输入发生」） */
     __tick: function (dt) {
-      animator.tick(dt || 16);
-      fx.tick(dt || 16);
-      render();
+      dirty = true;
+      step(dt || 16);
+    },
+    /** 无头测试用：不强制重绘，只推进时钟——用来验证脏标记与待机节流 */
+    __step: function (dt) {
+      step(dt || 16);
     }
   };
 }

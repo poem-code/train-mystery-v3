@@ -1,16 +1,36 @@
 /**
  * sim-balance.js —— 批量模拟：不渲染，只跑逻辑，统计通关率与死亡点
  *
- * 用法：node tools/sim-balance.js [局数]
- * 输出：通关率、平均到达层、各层死亡率、平均耗时
+ * 用法：node tools/sim-balance.js [局数] [主题] [种子]
+ *   例：node tools/sim-balance.js 1000 frost 20261111
+ * 输出：通关率、平均到达层、各层死亡率、平均操作步数
+ *
+ * 种子是可选的，但**做「改前/改后」对比时一定要给**：
+ * 同样 1000 局，不固定种子时同一份代码的通关率会在 43%—48.6% 之间跳，
+ * 这个噪声比大多数改动本身还大，很容易把随机波动读成「改了有影响」。
  */
 
 var stateApi = require("../js/game/state");
 var mapApi = require("../js/game/map");
+var rngApi = require("../js/game/rng");
 
 var N = parseInt(process.argv[2], 10) || 300;
 // 第二个参数指定车厢主题：node tools/sim-balance.js 300 frost
 var THEME = process.argv[3] || "rust";
+// 第三个参数：随机种子（可选）。给了就把三个随机源全部钉死，输出可复现
+var SEED = parseInt(process.argv[4], 10) || 0;
+
+if (SEED) {
+  var randomState = SEED;
+  Math.random = function () {
+    randomState = (randomState * 1103515245 + 12345) % 2147483648;
+    return randomState / 2147483648;
+  };
+  var fixedNow = 1793000000000;
+  Date.now = function () { return fixedNow; };
+  // rng 的全局实例在模块加载时就用真实时间播过种了，必须显式重播
+  rngApi.reseed(SEED);
+}
 
 /** 模拟一个「会看血量的普通玩家」 */
 function playRun(state, now) {
@@ -135,7 +155,7 @@ for (i = 0; i < N; i += 1) {
 }
 
 console.log("车厢主题：" + THEME);
-console.log("模拟局数：" + total.runs);
+console.log("模拟局数：" + total.runs + (SEED ? "（种子 " + SEED + "）" : "（未固定种子，数字有 ±2pp 抖动）"));
 console.log("通关率：" + ((total.cleared / total.runs) * 100).toFixed(1) + "%");
 console.log("平均到达层：" + (total.layerSum / total.runs).toFixed(2) + " / 9");
 console.log("平均操作步数：" + (total.stepsSum / total.runs).toFixed(1));
