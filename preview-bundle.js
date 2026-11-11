@@ -4577,6 +4577,134 @@ module.exports = {
 
 });
 
+define("js/game/data/relicSets.js", function(module, exports, require) {
+/**
+ * data/relicSets.js —— 遗物序列（套装）
+ *
+ * 为什么要有序列：26 件遗物各自只加一点数值，玩家拿到什么全看运气，
+ * 到中后期会觉得「一堆散件、没有方向」。序列把散件按打法归类，
+ * 同一序列凑够件数就额外给一次成型奖励——拿遗物从「抽奖」变成「凑牌」。
+ *
+ * 设计约束：
+ * 1. members 只写 id，不复制名字/描述，避免两处文案打架（名字以 relics.js 为准）。
+ * 2. tiers 的 need 必须递增且 ≤ members.length，否则永远激活不了。
+ * 3. effects 只能用 effects.js 里已声明的键——加新键要同时补行为分支，
+ *    否则就是「描述写着 +X，实际没生效」。tests 里有对应断言。
+ * 4. 序列奖励只给数值，不给规则型开关：规则型开关（逃跑免费、复活）在
+ *    套装里会变成「凑齐就无敌」，代价和取舍都没了。
+ */
+
+var RELIC_SETS = [
+  {
+    id: "arsenal",
+    name: "军械序列",
+    accent: "gold",
+    tagline: "把车厢里所有还能打响的东西都算上。",
+    members: [
+      "oldMagazine",
+      "sniperScope",
+      "quickDraw",
+      "twinShell",
+      "emptyShell",
+      "voidLens"
+    ],
+    tiers: [
+      { need: 2, desc: "攻击力 +3", effects: { attackFlat: 3 } },
+      { need: 4, desc: "第一击 +6 伤害", effects: { firstStrikeBonus: 6 } },
+      { need: 6, desc: "攻击力 +5，对 Boss 伤害 +12%", effects: { attackFlat: 5, bossDamageBonus: 0.12 } }
+    ]
+  },
+  {
+    id: "vigil",
+    name: "守望序列",
+    accent: "purple",
+    tagline: "盯住要害，别眨眼。",
+    members: [
+      "brassCompass",
+      "mirrorShard",
+      "hunterBadge",
+      "mourningBadge"
+    ],
+    tiers: [
+      { need: 2, desc: "精准暴击率 +6%", effects: { critChance: 0.06 } },
+      { need: 3, desc: "暴击率 +6%，精英战多 1 个强化候选", effects: { critChance: 0.06, extraEliteEnhanceChoice: 1 } },
+      { need: 4, desc: "暴击率 +10%，对 Boss 伤害 +10%", effects: { critChance: 0.1, bossDamageBonus: 0.1 } }
+    ]
+  },
+  {
+    id: "warden",
+    name: "守护序列",
+    accent: "teal",
+    tagline: "活着走到终点，比赢下每一场都难。",
+    members: [
+      "calmChip",
+      "emergencyNeedle",
+      "steelCharm",
+      "ironHeart",
+      "thinBlanket",
+      "trenchPlate",
+      "bloodOath",
+      "boneLantern"
+    ],
+    tiers: [
+      { need: 2, desc: "生命上限 +6", effects: { maxHpBonus: 6 } },
+      { need: 4, desc: "防御时护盾 +6", effects: { defendShieldBonus: 6 } },
+      { need: 6, desc: "低精神受伤再 -10%", effects: { lowSanityDamageReduction: 0.1 } },
+      { need: 8, desc: "生命上限 +12，战后回 6 生命", effects: { maxHpBonus: 12, healAfterBattle: 6 } }
+    ]
+  },
+  {
+    id: "scavenger",
+    name: "拾荒序列",
+    accent: "green",
+    tagline: "别人看见垃圾，你看见下一顿饭。",
+    members: [
+      "rationBox",
+      "echoCore",
+      "supplyPlate",
+      "brassKey",
+      "boneDice",
+      "foldedMap",
+      "warmBrick",
+      "widowCoin"
+    ],
+    tiers: [
+      { need: 2, desc: "每场战斗额外 1 金币", effects: { battleBonusGold: 1 } },
+      { need: 4, desc: "事件收益 +15%", effects: { eventRewardBoost: 0.15 } },
+      { need: 6, desc: "节点饱食消耗 -1", effects: { hungerCostDelta: -1 } },
+      { need: 8, desc: "战斗金币再 +3，事件收益再 +15%", effects: { battleBonusGold: 3, eventRewardBoost: 0.15 } }
+    ]
+  }
+];
+
+function getById(id) {
+  var i;
+  for (i = 0; i < RELIC_SETS.length; i += 1) {
+    if (RELIC_SETS[i].id === id) return RELIC_SETS[i];
+  }
+  return null;
+}
+
+/** 某件遗物属于哪个序列；不属于任何序列返回 null */
+function forRelic(relicId) {
+  var i;
+  var j;
+  for (i = 0; i < RELIC_SETS.length; i += 1) {
+    for (j = 0; j < RELIC_SETS[i].members.length; j += 1) {
+      if (RELIC_SETS[i].members[j] === relicId) return RELIC_SETS[i];
+    }
+  }
+  return null;
+}
+
+module.exports = {
+  RELIC_SETS: RELIC_SETS,
+  getById: getById,
+  forRelic: forRelic
+};
+
+});
+
 define("js/game/data/text.js", function(module, exports, require) {
 /**
  * data/text.js —— 静态文案（避免散落在场景里）
@@ -4708,13 +4836,13 @@ var THEMES = [
     glow: "rgba(226,110,70,0.20)",
     beam: "rgba(238,150,90,0.12)",
     rules: [
-      "敌人伤害 +8%",
+      "敌人伤害 +4%",
       "战斗金币 +40%",
       "商店价格 -15%",
       "开局额外 30 以太"
     ],
     mods: {
-      enemyDamageMul: 1.08,
+      enemyDamageMul: 1.04,
       goldMul: 1.4,
       shopPriceMul: 0.85,
       startEtherBonus: 30
@@ -5528,6 +5656,7 @@ var ui = require("../../core/ui");
 var common = require("../ui-common");
 var stateApi = require("../state");
 var relicsApi = require("../data/relics");
+var relicSetsApi = require("../data/relicSets");
 
 var P = draw.PALETTE;
 
@@ -5599,12 +5728,48 @@ function render(ctx, screen, state) {
       align: "center",
       color: rarityColor(relic.rarity)
     });
-    draw.text(ctx, relic.desc, panel.x + pad, cy + screen.px(84), {
+    var descTop = cy + screen.px(84);
+    // draw.text 返回的是「这段文字占的高度」，不是下一个 y，别直接当坐标用
+    var descHeight = draw.text(ctx, relic.desc, panel.x + pad, descTop, {
       size: screen.fz(12),
       color: P.inkDim,
       wrap: panel.w - pad * 2,
       lineHeight: screen.px(20)
     });
+
+    // 序列进度：拿到第 N 件时正好能凑齐下一档，是这一格最该说的事，
+    // 但要在「收下」之前说，否则玩家事后才知道自己刚凑齐了套装。
+    var set = relicSetsApi.forRelic(relic.id);
+    if (set) {
+      var ownedCount = 0;
+      var dup = false;
+      var k;
+      for (k = 0; k < run.relics.length; k += 1) {
+        if (set.members.indexOf(run.relics[k].id) >= 0) ownedCount += 1;
+        if (run.relics[k].id === relic.id) dup = true;
+      }
+      var after = dup ? ownedCount : ownedCount + 1;
+      var granted = (run.setActive && run.setActive[set.id]) || 0;
+      var next = granted < set.tiers.length ? set.tiers[granted] : null;
+      var willUnlock = !dup && next && after >= next.need;
+      var accent = P[set.accent] || P.teal;
+      var setY = descTop + descHeight + screen.px(12);
+      draw.text(ctx, set.name + "  " + after + " / " + set.members.length, cx, setY, {
+        size: screen.fz(11),
+        align: "center",
+        bold: true,
+        color: accent
+      });
+      var tip = willUnlock
+        ? "本次凑齐 " + next.need + " 件：" + next.desc
+        : (dup ? "已拥有，折算为资源" : (next ? "下一档 " + next.need + " 件：" + next.desc : "档位已全部达成"));
+      draw.text(ctx, tip, cx, setY + screen.px(18), {
+        size: screen.fz(10),
+        align: "center",
+        color: willUnlock ? P.gold : P.inkFaint,
+        wrap: panel.w - pad * 2
+      });
+    }
   }
 
   var btn = {
@@ -5654,6 +5819,7 @@ var stateApi = require("../state");
 var config = require("../config");
 var enemiesApi = require("../data/enemies");
 var relicsApi = require("../data/relics");
+var relicSetsApi = require("../data/relicSets");
 var enhApi = require("../data/enhancements");
 var achievementsApi = require("../data/achievements");
 
@@ -5703,11 +5869,14 @@ function buildRows(state, tab) {
     for (i = 0; i < relicsApi.RELICS.length; i += 1) {
       var relic = relicsApi.RELICS[i];
       var owned = !!codex.relics[relic.id];
+      var set = relicSetsApi.forRelic(relic.id);
       rows.push({
         id: relic.id,
         name: owned ? relic.name : "？？？",
         unlocked: owned,
-        desc: owned ? relic.desc : "尚未获得",
+        desc: owned
+          ? (set ? "「" + set.name + "」· " + relic.desc : relic.desc)
+          : (set ? "尚未获得 · 属于「" + set.name + "」" : "尚未获得"),
         color: owned ? P.teal : P.inkFaint
       });
     }
@@ -6319,6 +6488,7 @@ define("js/game/modals/info.js", function(module, exports, require) {
 var draw = require("../../core/draw");
 var ui = require("../../core/ui");
 var common = require("../ui-common");
+var stateApi = require("../state");
 var text = require("../data/text");
 var relicsApi = require("../data/relics");
 var enhApi = require("../data/enhancements");
@@ -6354,6 +6524,32 @@ function renderCollection(ctx, screen, panel, state) {
   var y = common.modalTitle(ctx, screen, panel, "本局构筑", "遗物与强化都会在本局结束时清空");
   var i;
 
+  // 序列放在最前面：它是「这一局该往哪凑」的唯一提示，
+  // 排在长串遗物后面的话，遗物一多就永远看不到。
+  var sets = stateApi.setProgress(run);
+  y = ui.section(ctx, "遗物序列", panel.x + pad, y, panel.w - pad * 2);
+  for (i = 0; i < sets.length; i += 1) {
+    var set = sets[i];
+    var color = draw.PALETTE[set.accent] || P.inkDim;
+    if (!set.count) color = P.inkFaint;
+    var tail;
+    if (set.count >= set.total) tail = "已集齐";
+    else if (!set.nextNeed) tail = "档位全达成";
+    else tail = "再 " + (set.nextNeed - set.count) + " 件进档";
+    draw.text(ctx, set.name + " " + set.count + " / " + set.total, panel.x + pad, y, {
+      size: screen.fz(11),
+      color: color,
+      bold: set.count > 0
+    });
+    draw.text(ctx, tail, panel.x + panel.w - pad, y, {
+      size: screen.fz(10),
+      align: "right",
+      color: P.inkFaint
+    });
+    y += screen.px(17);
+  }
+  y += screen.px(6);
+
   y = ui.section(ctx, "遗物 " + (run.relics.length || 0), panel.x + pad, y, panel.w - pad * 2);
   if (!run.relics.length) {
     draw.text(ctx, "暂无遗物，宝箱与精英战斗会掉落。", panel.x + pad, y, {
@@ -6362,8 +6558,9 @@ function renderCollection(ctx, screen, panel, state) {
     });
     y += screen.px(20);
   } else {
+    var shown = 0;
     for (i = 0; i < run.relics.length; i += 1) {
-      if (y > panel.y + panel.h - screen.px(90)) break;
+      if (y > panel.y + panel.h - screen.px(112)) break;
       draw.text(ctx, "· " + run.relics[i].name, panel.x + pad, y, {
         size: screen.fz(12),
         color: P.teal,
@@ -6376,24 +6573,46 @@ function renderCollection(ctx, screen, panel, state) {
         lineHeight: screen.px(15)
       });
       y += used + screen.px(20);
+      shown += 1;
+    }
+    // 装不下时给一句「还有 N 件」：直接截断会让人以为遗物丢了。
+    // 遗物都放不下时强化更放不下，顺带把强化数量也报出来。
+    if (shown < run.relics.length) {
+      var rest = "…… 还有 " + (run.relics.length - shown) + " 件遗物未展开";
+      if (run.enhancements.length) rest += " · 强化 " + run.enhancements.length + " 项";
+      draw.text(ctx, rest, panel.x + pad, y, {
+        size: screen.fz(10),
+        color: P.inkFaint
+      });
+      y += screen.px(16);
     }
   }
 
-  y = ui.section(ctx, "强化 " + (run.enhancements.length || 0), panel.x + pad, y + screen.px(4), panel.w - pad * 2);
-  if (!run.enhancements.length) {
-    draw.text(ctx, "暂无强化，战斗胜利与营地整备会给。", panel.x + pad, y, {
-      size: screen.fz(11),
+  // 空间不够时整节不画：只画个「强化 2」标题、下面空空，
+  // 比不画更像卡住了
+  if (y < panel.y + panel.h - screen.px(96)) {
+    y = ui.section(ctx, "强化 " + (run.enhancements.length || 0), panel.x + pad, y + screen.px(4), panel.w - pad * 2);
+    if (!run.enhancements.length) {
+      draw.text(ctx, "暂无强化，战斗胜利与营地整备会给。", panel.x + pad, y, {
+        size: screen.fz(11),
+        color: P.inkFaint
+      });
+    } else {
+      for (i = 0; i < run.enhancements.length; i += 1) {
+        if (y > panel.y + panel.h - screen.px(76)) break;
+        draw.text(ctx, "· " + run.enhancements[i].name, panel.x + pad, y, {
+          size: screen.fz(11),
+          color: P.ink
+        });
+        y += screen.px(18);
+      }
+    }
+  } else if (run.enhancements.length && y < panel.y + panel.h - screen.px(76)) {
+    // 连标题都放不下时至少留一句，别让玩家以为自己没强化
+    draw.text(ctx, "强化 " + run.enhancements.length + " 项（此处放不下，见路线图）", panel.x + pad, y, {
+      size: screen.fz(10),
       color: P.inkFaint
     });
-  } else {
-    for (i = 0; i < run.enhancements.length; i += 1) {
-      if (y > panel.y + panel.h - screen.px(60)) break;
-      draw.text(ctx, "· " + run.enhancements[i].name, panel.x + pad, y, {
-        size: screen.fz(11),
-        color: P.ink
-      });
-      y += screen.px(18);
-    }
   }
 }
 
@@ -6430,7 +6649,9 @@ function render(ctx, screen, state) {
   var height = 470;
   if (view === "collection") {
     var run = state.run;
-    var body = 120 + run.relics.length * 46 + run.enhancements.length * 20;
+    // 210 是「标题 + 两个分节头 + 底部按钮」的固定开销，46/18/17 是各类条目的行高。
+    var body = 210 + stateApi.setProgress(run).length * 17 +
+      run.relics.length * 46 + run.enhancements.length * 18;
     height = Math.max(260, Math.min(560, body));
   } else if (view === "enemy") {
     height = 250;
@@ -7915,6 +8136,7 @@ var mapApi = require("./map");
 var rng = require("./rng");
 var enemiesApi = require("./data/enemies");
 var relicsApi = require("./data/relics");
+var relicSetsApi = require("./data/relicSets");
 var enhApi = require("./data/enhancements");
 var eventsApi = require("./data/events");
 var itemsApi = require("./data/items");
@@ -7996,6 +8218,8 @@ function createRun(seed) {
     pendingRelicId: null,
     effects: effectsApi.emptyEffects(),
     relics: [],
+    /** 各序列已发放的档位数量：{ setId: 2 } 表示前两档已生效，避免重复叠加 */
+    setActive: {},
     enhancements: [],
     recentEvents: [],
     /** 事件链进度：{ chainId: 已完成段数 } */
@@ -9247,6 +9471,99 @@ function chooseEnhancement(state, id) {
   return { ok: true, enhancement: found };
 }
 
+/* ---------------- 遗物序列（套装） ---------------- */
+
+/** 本局已收集的某序列件数 */
+function setOwnedCount(run, set) {
+  var count = 0;
+  var i;
+  for (i = 0; i < run.relics.length; i += 1) {
+    if (set.members.indexOf(run.relics[i].id) >= 0) count += 1;
+  }
+  return count;
+}
+
+/**
+ * 序列进度（只读，给界面用）。
+ * granted 是「已经发过奖励的档位数」，不是「当前满足的档位数」——
+ * 两者在正常流程里一致，但读档补算前可能不同，界面应显示前者，
+ * 否则玩家会看到「已激活」却没拿到属性。
+ */
+function setProgress(run) {
+  var list = [];
+  var i;
+  var j;
+  var sets = relicSetsApi.RELIC_SETS;
+  for (i = 0; i < sets.length; i += 1) {
+    var set = sets[i];
+    var count = run ? setOwnedCount(run, set) : 0;
+    var granted = (run && run.setActive && run.setActive[set.id]) || 0;
+    var tiers = [];
+    for (j = 0; j < set.tiers.length; j += 1) {
+      tiers.push({
+        need: set.tiers[j].need,
+        desc: set.tiers[j].desc,
+        active: j < granted
+      });
+    }
+    list.push({
+      id: set.id,
+      name: set.name,
+      accent: set.accent,
+      count: count,
+      total: set.members.length,
+      granted: granted,
+      tiers: tiers,
+      nextNeed: granted < set.tiers.length ? set.tiers[granted].need : 0
+    });
+  }
+  return list;
+}
+
+/**
+ * 结算序列奖励：把「新达成但还没发过」的档位补发一次。
+ *
+ * 幂等：靠 run.setActive 记账，重复调用不会二次加属性。
+ * 读档后也调用一次，老存档（没有 setActive 字段）会自动补齐应得的档位。
+ */
+function applySetBonuses(state) {
+  var run = state.run;
+  if (!run || !run.active) return [];
+  if (!run.setActive) run.setActive = {};
+  var activated = [];
+  var i;
+  var j;
+  var sets = relicSetsApi.RELIC_SETS;
+  for (i = 0; i < sets.length; i += 1) {
+    var set = sets[i];
+    var count = setOwnedCount(run, set);
+    var granted = run.setActive[set.id] || 0;
+    for (j = granted; j < set.tiers.length; j += 1) {
+      var tier = set.tiers[j];
+      if (count < tier.need) break;
+      effectsApi.addEffects(run.effects, tier.effects);
+      if (tier.effects && tier.effects.maxHpBonus) {
+        state.player.maxHp += tier.effects.maxHpBonus;
+        state.player.hp = clamp(state.player.hp + tier.effects.maxHpBonus, 1, state.player.maxHp);
+      }
+      run.setActive[set.id] = j + 1;
+      activated.push({ set: set, tier: tier });
+    }
+  }
+  for (i = 0; i < activated.length; i += 1) {
+    pushLog(state, "序列激活",
+      "「" + activated[i].set.name + "」第 " + activated[i].tier.need + " 件达成：" + activated[i].tier.desc + "。");
+  }
+  return activated;
+}
+
+/** 读档后补算：老档没有 setActive，或者存档被改乱时用 */
+function reconcileSets(state) {
+  if (!state.run || !state.run.active) return [];
+  if (!state.run.setActive) state.run.setActive = {};
+  return applySetBonuses(state);
+}
+
 function obtainRelic(state, relic) {
   var run = state.run;
   if (!relic) return null;
@@ -9265,7 +9582,8 @@ function obtainRelic(state, relic) {
     state.player.hp = state.player.maxHp;
   }
   pushLog(state, "遗物获得", "你获得了「" + relic.name + "」。");
-  return { duplicated: false, relic: relic };
+  var sets = applySetBonuses(state);
+  return { duplicated: false, relic: relic, sets: sets };
 }
 
 function openChest(state) {
@@ -9597,6 +9915,9 @@ module.exports = {
   openEnhance: openEnhance,
   chooseEnhancement: chooseEnhancement,
   obtainRelic: obtainRelic,
+  setProgress: setProgress,
+  applySetBonuses: applySetBonuses,
+  reconcileSets: reconcileSets,
   openChest: openChest,
   confirmChest: confirmChest,
   // 事件
@@ -10004,6 +10325,24 @@ function sanitizeChains(raw) {
   return out;
 }
 
+/**
+ * 序列档位记账：只保留已知序列 id，档位数夹在 0—该序列档位总数之间。
+ * 这一项决定「奖励是否已经发过」，宁可少记也不能多记——多记会让读档后
+ * 补算逻辑跳过应得的档位，玩家白丢属性。
+ */
+function sanitizeSetActive(raw) {
+  var relicSetsApi = require("./data/relicSets");
+  var out = {};
+  if (!raw || typeof raw !== "object") return out;
+  var i;
+  for (i = 0; i < relicSetsApi.RELIC_SETS.length; i += 1) {
+    var set = relicSetsApi.RELIC_SETS[i];
+    var value = toInt(raw[set.id], 0, set.tiers.length, 0);
+    if (value > 0) out[set.id] = value;
+  }
+  return out;
+}
+
 function sanitizeRun(raw) {
   var base = stateApi.createDefaultState(Date.now()).run;
   if (!raw || typeof raw !== "object" || raw.active !== true) return base;
@@ -10030,6 +10369,7 @@ function sanitizeRun(raw) {
     daily: sanitizeDaily(raw.daily),
     effects: sanitizeEffects(raw.effects),
     relics: clampStrings(raw.relics, 30),
+    setActive: sanitizeSetActive(raw.setActive),
     enhancements: clampStrings(raw.enhancements, 40),
     recentEvents: Array.isArray(raw.recentEvents)
       ? raw.recentEvents.filter(function (id) { return typeof id === "string"; }).slice(0, 3)
@@ -10428,6 +10768,9 @@ if (!state) {
   state = stateApi.createDefaultState(platform.now());
 }
 stateApi.handleDailyLogin(state, platform.now());
+// 老存档（序列上线前）没有 setActive 记账，这里补发应得的序列档位；
+// 已有记账的存档调用是空操作，不会二次加属性。
+stateApi.reconcileSets(state);
 
 /* ---------------- 存档（节流 + 后台立即落盘） ---------------- */
 
