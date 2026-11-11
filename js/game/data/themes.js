@@ -55,13 +55,13 @@ var THEMES = [
     glow: "rgba(226,110,70,0.20)",
     beam: "rgba(238,150,90,0.12)",
     rules: [
-      "敌人伤害 +8%",
+      "敌人伤害 +4%",
       "战斗金币 +40%",
       "商店价格 -15%",
       "开局额外 30 以太"
     ],
     mods: {
-      enemyDamageMul: 1.08,
+      enemyDamageMul: 1.04,
       goldMul: 1.4,
       shopPriceMul: 0.85,
       startEtherBonus: 30

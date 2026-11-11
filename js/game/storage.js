@@ -362,6 +362,24 @@ function sanitizeChains(raw) {
   return out;
 }
 
+/**
+ * 序列档位记账：只保留已知序列 id，档位数夹在 0—该序列档位总数之间。
+ * 这一项决定「奖励是否已经发过」，宁可少记也不能多记——多记会让读档后
+ * 补算逻辑跳过应得的档位，玩家白丢属性。
+ */
+function sanitizeSetActive(raw) {
+  var relicSetsApi = require("./data/relicSets");
+  var out = {};
+  if (!raw || typeof raw !== "object") return out;
+  var i;
+  for (i = 0; i < relicSetsApi.RELIC_SETS.length; i += 1) {
+    var set = relicSetsApi.RELIC_SETS[i];
+    var value = toInt(raw[set.id], 0, set.tiers.length, 0);
+    if (value > 0) out[set.id] = value;
+  }
+  return out;
+}
+
 function sanitizeRun(raw) {
   var base = stateApi.createDefaultState(Date.now()).run;
   if (!raw || typeof raw !== "object" || raw.active !== true) return base;
@@ -388,6 +406,7 @@ function sanitizeRun(raw) {
     daily: sanitizeDaily(raw.daily),
     effects: sanitizeEffects(raw.effects),
     relics: clampStrings(raw.relics, 30),
+    setActive: sanitizeSetActive(raw.setActive),
     enhancements: clampStrings(raw.enhancements, 40),
     recentEvents: Array.isArray(raw.recentEvents)
       ? raw.recentEvents.filter(function (id) { return typeof id === "string"; }).slice(0, 3)

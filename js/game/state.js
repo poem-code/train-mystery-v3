@@ -16,6 +16,7 @@ var mapApi = require("./map");
 var rng = require("./rng");
 var enemiesApi = require("./data/enemies");
 var relicsApi = require("./data/relics");
+var relicSetsApi = require("./data/relicSets");
 var enhApi = require("./data/enhancements");
 var eventsApi = require("./data/events");
 var itemsApi = require("./data/items");
@@ -97,6 +98,8 @@ function createRun(seed) {
     pendingRelicId: null,
     effects: effectsApi.emptyEffects(),
     relics: [],
+    /** 各序列已发放的档位数量：{ setId: 2 } 表示前两档已生效，避免重复叠加 */
+    setActive: {},
     enhancements: [],
     recentEvents: [],
     /** 事件链进度：{ chainId: 已完成段数 } */
@@ -1348,6 +1351,99 @@ function chooseEnhancement(state, id) {
   return { ok: true, enhancement: found };
 }
 
+/* ---------------- 遗物序列（套装） ---------------- */
+
+/** 本局已收集的某序列件数 */
+function setOwnedCount(run, set) {
+  var count = 0;
+  var i;
+  for (i = 0; i < run.relics.length; i += 1) {
+    if (set.members.indexOf(run.relics[i].id) >= 0) count += 1;
+  }
+  return count;
+}
+
+/**
+ * 序列进度（只读，给界面用）。
+ * granted 是「已经发过奖励的档位数」，不是「当前满足的档位数」——
+ * 两者在正常流程里一致，但读档补算前可能不同，界面应显示前者，
+ * 否则玩家会看到「已激活」却没拿到属性。
+ */
+function setProgress(run) {
+  var list = [];
+  var i;
+  var j;
+  var sets = relicSetsApi.RELIC_SETS;
+  for (i = 0; i < sets.length; i += 1) {
+    var set = sets[i];
+    var count = run ? setOwnedCount(run, set) : 0;
+    var granted = (run && run.setActive && run.setActive[set.id]) || 0;
+    var tiers = [];
+    for (j = 0; j < set.tiers.length; j += 1) {
+      tiers.push({
+        need: set.tiers[j].need,
+        desc: set.tiers[j].desc,
+        active: j < granted
+      });
+    }
+    list.push({
+      id: set.id,
+      name: set.name,
+      accent: set.accent,
+      count: count,
+      total: set.members.length,
+      granted: granted,
+      tiers: tiers,
+      nextNeed: granted < set.tiers.length ? set.tiers[granted].need : 0
+    });
+  }
+  return list;
+}
+
+/**
+ * 结算序列奖励：把「新达成但还没发过」的档位补发一次。
+ *
+ * 幂等：靠 run.setActive 记账，重复调用不会二次加属性。
+ * 读档后也调用一次，老存档（没有 setActive 字段）会自动补齐应得的档位。
+ */
+function applySetBonuses(state) {
+  var run = state.run;
+  if (!run || !run.active) return [];
+  if (!run.setActive) run.setActive = {};
+  var activated = [];
+  var i;
+  var j;
+  var sets = relicSetsApi.RELIC_SETS;
+  for (i = 0; i < sets.length; i += 1) {
+    var set = sets[i];
+    var count = setOwnedCount(run, set);
+    var granted = run.setActive[set.id] || 0;
+    for (j = granted; j < set.tiers.length; j += 1) {
+      var tier = set.tiers[j];
+      if (count < tier.need) break;
+      effectsApi.addEffects(run.effects, tier.effects);
+      if (tier.effects && tier.effects.maxHpBonus) {
+        state.player.maxHp += tier.effects.maxHpBonus;
+        state.player.hp = clamp(state.player.hp + tier.effects.maxHpBonus, 1, state.player.maxHp);
+      }
+      run.setActive[set.id] = j + 1;
+      activated.push({ set: set, tier: tier });
+    }
+  }
+  for (i = 0; i < activated.length; i += 1) {
+    pushLog(state, "序列激活",
+      "「" + activated[i].set.name + "」第 " + activated[i].tier.need + " 件达成：" + activated[i].tier.desc + "。");
+  }
+  return activated;
+}
+
+/** 读档后补算：老档没有 setActive，或者存档被改乱时用 */
+function reconcileSets(state) {
+  if (!state.run || !state.run.active) return [];
+  if (!state.run.setActive) state.run.setActive = {};
+  return applySetBonuses(state);
+}
+
 function obtainRelic(state, relic) {
   var run = state.run;
   if (!relic) return null;
@@ -1366,7 +1462,8 @@ function obtainRelic(state, relic) {
     state.player.hp = state.player.maxHp;
   }
   pushLog(state, "遗物获得", "你获得了「" + relic.name + "」。");
-  return { duplicated: false, relic: relic };
+  var sets = applySetBonuses(state);
+  return { duplicated: false, relic: relic, sets: sets };
 }
 
 function openChest(state) {
@@ -1698,6 +1795,9 @@ module.exports = {
   openEnhance: openEnhance,
   chooseEnhancement: chooseEnhancement,
   obtainRelic: obtainRelic,
+  setProgress: setProgress,
+  applySetBonuses: applySetBonuses,
+  reconcileSets: reconcileSets,
   openChest: openChest,
   confirmChest: confirmChest,
   // 事件

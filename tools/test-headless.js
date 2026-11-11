@@ -232,6 +232,12 @@ Math.random = function () {
   return seedState / 2147483648;
 };
 
+// 只固定 Math.random 还不够：地图 seed 来自 Date.now()，每次跑还是换一张图，
+// 同一条断言就会时红时绿。把时钟也钉死，自动游玩才是真正可复现的。
+var realNow = Date.now;
+var fixedNow = 1793000000000;
+Date.now = function () { return fixedNow; };
+
 var errorCount = 0;
 var steps = 0;
 var lastSignature = "";
@@ -302,6 +308,7 @@ ok("至少通关一次", cleared >= 1, "通关 " + cleared + " 次");
 ok("步数在合理范围", steps < MAX_STEPS, "用了 " + steps + " 步");
 
 Math.random = realRandom;
+Date.now = realNow;
 
 /* ---------------- 存档一致性 ---------------- */
 
@@ -945,8 +952,139 @@ ok("每日挑战无视已选主题，固定锈蚀车厢",
   dailyRes.ok && dailyRes.run.theme === "rust",
   dailyRes.ok ? dailyRes.run.theme : dailyRes.message);
 
-/* ---------------- 汇总 ---------------- */
+section("遗物序列");
 
+var relicSetsApiT = require("../js/game/data/relicSets");
+var relicsApiT = require("../js/game/data/relics");
+var effectsApiT = require("../js/game/data/effects");
+
+// 数据完整性：成员必须真实存在、一件遗物只能属于一个序列
+var setMemberSeen = {};
+var setMemberDup = [];
+var setMemberMissing = [];
+var setTierBad = [];
+var setEffectBad = [];
+var legalKeys = effectsApiT.NUMERIC_KEYS.concat(effectsApiT.FLAG_KEYS).concat(["firstShopDiscount"]);
+relicSetsApiT.RELIC_SETS.forEach(function (set) {
+  var last = 0;
+  set.members.forEach(function (id) {
+    if (!relicsApiT.getById(id)) setMemberMissing.push(id);
+    if (setMemberSeen[id]) setMemberDup.push(id);
+    setMemberSeen[id] = set.id;
+  });
+  set.tiers.forEach(function (tier) {
+    if (tier.need <= last || tier.need > set.members.length) setTierBad.push(set.id + ":" + tier.need);
+    last = tier.need;
+    Object.keys(tier.effects).forEach(function (key) {
+      if (legalKeys.indexOf(key) < 0) setEffectBad.push(set.id + "." + key);
+    });
+  });
+});
+
+ok("序列引用的遗物 id 全部存在", setMemberMissing.length === 0, setMemberMissing.join(","));
+ok("同一件遗物不会被两个序列同时收录", setMemberDup.length === 0, setMemberDup.join(","));
+ok("26 件遗物都有序列归属",
+  Object.keys(setMemberSeen).length === relicsApiT.RELICS.length,
+  Object.keys(setMemberSeen).length + " / " + relicsApiT.RELICS.length);
+ok("序列档位 need 递增且不超过成员数", setTierBad.length === 0, setTierBad.join(","));
+ok("序列奖励只使用已声明的效果字段", setEffectBad.length === 0, setEffectBad.join(","));
+
+// 逐件堆积验证：军械序列 2 件 / 4 件各触发一次
+var sArs = freshRun();
+var arsBase = sArs.run.effects.attackFlat;
+stateApi.obtainRelic(sArs, relicsApiT.getById("oldMagazine")); // 攻击 +4
+var arsOne = stateApi.obtainRelic(sArs, relicsApiT.getById("quickDraw")); // 2 件 → 攻击 +3
+ok("凑到 2 件触发第一档",
+  arsOne.sets.length === 1 && sArs.run.setActive.arsenal === 1,
+  JSON.stringify(sArs.run.setActive));
+ok("第一档攻击 +3 落到 effects",
+  sArs.run.effects.attackFlat === arsBase + 4 + 3,
+  "实际 " + sArs.run.effects.attackFlat);
+ok("第一档给的是攻击而不是先手",
+  sArs.run.effects.firstStrikeBonus === 12, "先手 " + sArs.run.effects.firstStrikeBonus);
+
+stateApi.obtainRelic(sArs, relicsApiT.getById("sniperScope")); // 3 件，不发奖
+ok("3 件时停在第一档", sArs.run.setActive.arsenal === 1, String(sArs.run.setActive.arsenal));
+var arsFour = stateApi.obtainRelic(sArs, relicsApiT.getById("twinShell")); // 4 件 → 先手 +6
+ok("凑到 4 件触发第二档",
+  arsFour.sets.length === 1 && sArs.run.setActive.arsenal === 2,
+  JSON.stringify(sArs.run.setActive));
+ok("第二档先手 +6 叠加在原有 12 上",
+  sArs.run.effects.firstStrikeBonus === 18, "先手 " + sArs.run.effects.firstStrikeBonus);
+
+// 幂等：重复结算不能二次加属性
+var beforeRepeat = sArs.run.effects.attackFlat;
+var repeatSets = stateApi.applySetBonuses(sArs);
+ok("重复结算序列不再发奖",
+  repeatSets.length === 0 && sArs.run.effects.attackFlat === beforeRepeat,
+  "攻击 " + sArs.run.effects.attackFlat);
+
+// 生命上限类奖励要同步写进 player.maxHp，否则面板和实际不一致
+var sWard = freshRun();
+var wardBaseHp = sWard.player.maxHp;
+stateApi.obtainRelic(sWard, relicsApiT.getById("calmChip"));
+stateApi.obtainRelic(sWard, relicsApiT.getById("steelCharm"));
+ok("守护序列 2 件给生命上限 +6",
+  sWard.player.maxHp === wardBaseHp + 6 && sWard.run.effects.maxHpBonus === 6,
+  "上限 " + sWard.player.maxHp + " / 加成 " + sWard.run.effects.maxHpBonus);
+
+// 进度面板数据
+var sProg = freshRun();
+stateApi.obtainRelic(sProg, relicsApiT.getById("brassCompass"));
+stateApi.obtainRelic(sProg, relicsApiT.getById("mirrorShard"));
+var progList = stateApi.setProgress(sProg.run);
+var progVigil = null;
+var k2;
+for (k2 = 0; k2 < progList.length; k2 += 1) {
+  if (progList[k2].id === "vigil") progVigil = progList[k2];
+}
+ok("序列进度按已收集件数统计",
+  progVigil && progVigil.count === 2 && progVigil.total === 4,
+  progVigil ? progVigil.count + " / " + progVigil.total : "缺 vigil");
+ok("序列进度标出已激活档位",
+  progVigil && progVigil.granted === 1 && progVigil.tiers[0].active && !progVigil.tiers[1].active,
+  progVigil ? JSON.stringify(progVigil.tiers) : "");
+ok("下一档需要件数可读出", progVigil && progVigil.nextNeed === 3, progVigil && String(progVigil.nextNeed));
+
+// 老存档补算：有遗物但没有 setActive 记账
+var sLegacy = freshRun();
+sLegacy.run.relics = [
+  { id: "oldMagazine", name: "旧式弹仓", desc: "", rarity: "common" },
+  { id: "quickDraw", name: "快枪套", desc: "", rarity: "rare" }
+];
+sLegacy.run.setActive = {};
+var legacyBaseAtk = sLegacy.run.effects.attackFlat;
+var legacyActivated = stateApi.reconcileSets(sLegacy);
+ok("老档读入后补发应得档位",
+  legacyActivated.length === 1 && sLegacy.run.setActive.arsenal === 1,
+  JSON.stringify(sLegacy.run.setActive));
+ok("补发后属性到位", sLegacy.run.effects.attackFlat === legacyBaseAtk + 3,
+  "攻击 " + sLegacy.run.effects.attackFlat);
+ok("补算不会重复加属性", (function () {
+  var atk = sLegacy.run.effects.attackFlat;
+  stateApi.reconcileSets(sLegacy);
+  return sLegacy.run.effects.attackFlat === atk;
+})());
+
+// 存档白名单：未知序列丢弃、档位数夹取
+var sSetSave = freshRun();
+sSetSave.run.relics = [
+  { id: "calmChip", name: "冷静芯片", desc: "", rarity: "rare" },
+  { id: "steelCharm", name: "钢骨护符", desc: "", rarity: "common" }
+];
+sSetSave.run.setActive = { arsenal: 1, vigil: "3", warden: 99, hacked: 5 };
+storage.save(sSetSave);
+var sSetBack = storage.load();
+ok("未知序列 id 不会进存档",
+  sSetBack.run.setActive.hacked === undefined, JSON.stringify(sSetBack.run.setActive));
+ok("档位数按该序列上限夹取",
+  sSetBack.run.setActive.warden === 4, JSON.stringify(sSetBack.run.setActive));
+ok("字符串档位按数字解析", sSetBack.run.setActive.vigil === 3,
+  JSON.stringify(sSetBack.run.setActive));
+ok("非法档位不会打乱已有序列", sSetBack.run.setActive.arsenal === 1,
+  JSON.stringify(sSetBack.run.setActive));
+
+/* ---------------- 汇总 ---------------- */
 console.log("\n" + "=".repeat(46));
 console.log("通过 " + PASS + " / " + (PASS + FAIL));
 if (FAIL) {

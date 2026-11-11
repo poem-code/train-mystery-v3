@@ -163,6 +163,26 @@
     go("home:enter");
   }
 
+  // ?sets=1 —— 预先塞一批遗物，用来检查「本局构筑」里的序列进度。
+  // 必须放在开局之后（序列奖励只在 active 的局内结算），但又要在 modal 分支之前，
+  // 否则后面设的弹窗会被这里清掉。
+  if (q.get("sets")) {
+    var setsStateApi = load("js/game/state.js");
+    var setsRelics = load("js/game/data/relics.js");
+    var setPool = [
+      "oldMagazine", "quickDraw", "sniperScope",
+      "brassCompass", "mirrorShard",
+      "calmChip", "steelCharm",
+      "rationBox", "echoCore"
+    ];
+    for (var si = 0; si < setPool.length; si += 1) {
+      setsStateApi.obtainRelic(state, setsRelics.getById(setPool[si]));
+    }
+    state.current.modal = null;
+    state.run.pendingRelicId = null;
+    changed = true;
+  }
+
   if (modal === "battle") {
     var map2 = load("js/game/map.js");
     var avail = map2.available(state.run.layers, state.run.currentNodeId);
@@ -293,7 +313,8 @@
     state.current.scene = "train";
     state.current.modal = "trainUpgrade";
   } else if (modal === "chest") {
-    state.run.pendingRelicId = "calmChip";
+    // relic=xxx 指定宝箱里开出的遗物，用来检查「序列凑齐」提示
+    state.run.pendingRelicId = q.get("relic") || "calmChip";
     state.current.modal = "chest";
   }
 

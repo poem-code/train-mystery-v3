@@ -12,7 +12,7 @@ Canvas 全自绘，无 DOM 依赖，无第三方库，纯 ES5（`var` 到底）�
 
 ```bash
 # 1) 无头回归（不需要任何环境，Node 直接跑）
-node tools/test-headless.js          # 102 项
+node tools/test-headless.js          # 125 项
 
 # 2) 数值平衡模拟（批量跑局，统计通关率与死亡分布）
 node tools/sim-balance.js 300
@@ -64,7 +64,9 @@ AppID 与广告位怎么申请、卡在哪一步，见 [`docs/DOUYIN_SETUP.md`](
 | `preview.html?modal=battle&fx=1` | 打一拳后停在 80ms，检查伤害飘字与粒子位置 |
 | `preview.html?modal=enhance` / `shop` / `event` / `chest` / `camp` / `summary` | 对应弹窗 |
 | `preview.html?modal=settings` / `trainUpgrade` | 设置 / 列车升级 |
-| `preview.html?modal=info&view=collection` | 本局构筑图鉴 |
+| `preview.html?modal=info&view=collection` | 本局构筑图鉴（含遗物序列进度） |
+| `preview.html?scene=route&sets=1&modal=info&view=collection` | 塞一批遗物，看序列进度 |
+| `preview.html?scene=route&sets=1&modal=chest&relic=twinShell` | 宝箱里看「本次凑齐」提示 |
 | `preview.html?modal=codex&tab=enemies` | 永久图鉴（`tab` = enemies / relics / enhancements / achievements） |
 | `preview.html?modal=codex&tab=enhancements&page=2` | 图鉴指定页 |
 | `preview.html?modal=daily` | 每日挑战 |
@@ -126,7 +128,7 @@ assets/
   audio/                 12 个音效 + 3 首 BGM（合计约 928 KB，程序合成，无版权风险）
 
 tools/
-  test-headless.js       无头回归（102 项）
+  test-headless.js       无头回归（125 项）
   sim-balance.js         批量模拟，输出通关率与死亡分布
   gen-audio.py           程序合成音效与 BGM
   build-bundle.js        把 js/ 打成浏览器可跑的 bundle（仅本地预览用）
@@ -161,7 +163,7 @@ docs/                    架构 / 内容表 / 调参手册 / 上线清单 / 完�
   **织网（缠住削弱下一击）、寄生（挂卵孵化）、狂化（半血永久加攻）、赌徒（伤害大幅浮动）**
 - **8 个精英词缀**：6 精英 × 8 词缀 = 48 种组合，全部有真实行为分支
 - **34 项局内强化**（3 选 1）：暴击流 / 盾流 / 残血流 / 先手流四条线各自能成型
-- **26 件遗物**、**32 个随机事件 + 3 条 3 段式事件链**（链进度存档、跳段不惩罚）
+- **26 件遗物 + 4 套遗物序列**（凑齐给成型奖励，宝箱/构筑页/图鉴三处提示）、**32 个随机事件 + 3 条 3 段式事件链**（链进度存档、跳段不惩罚）
 - **永久图鉴 90 条目**（敌人 30 / 遗物 26 / 强化 34），25/50/75/100% 四档奖励
 - **12 条成就**，声明式指标，奖励只给以太不给战力（不破坏平衡）
 - **每日挑战**：日期哈希种子 + 3 条随机限制条件 + 独立奖励 + 钱包快照还原
@@ -179,14 +181,15 @@ docs/                    架构 / 内容表 / 调参手册 / 上线清单 / 完�
 
 | 手段 | 规模 | 结果 |
 |---|---|---|
-| `test-headless.js` | 102 项 | 102 / 102 通过 |
-| `sim-balance.js` | 300 局 | 锈蚀 44.3% / 霜封 46.7% / 焚炉 39.7%，失败集中在 L9 Boss |
+| `test-headless.js` | 125 项 | 125 / 125 通过 |
+| `sim-balance.js` | 千局 | 锈蚀 ~45% / 霜封 ~44.6% / 焚炉 ~40.6%，失败集中在 L9 Boss |
 
 测试覆盖：整机启动、全链路自动通关（Math.random 固定种子，结果可复现）、存档往返与迁移、脏档与越界点击、
 内容数据一致性（特性有分支 / 词缀字段有分支 / 效果字段有消费点 / 事件字段合法）、
 14 种特性行为、8 个词缀行为、4 个新效果字段、事件链顺序与推进、
 图鉴与成就发放、每日挑战确定性、建造保底语义、卡死保护、
-车厢主题（修正符合并、局内锁定、解锁扣费、敌人血量倍率、金币倍率、内容权重偏向、存档白名单）。
+车厢主题（修正符合并、局内锁定、解锁扣费、敌人血量倍率、金币倍率、内容权重偏向、存档白名单）、
+遗物序列（成员归属唯一、档位递增、效果字段合法、逐档发放、幂等、老档补算、存档夹取）。
 
 ---
 

@@ -12,6 +12,7 @@ var stateApi = require("../state");
 var config = require("../config");
 var enemiesApi = require("../data/enemies");
 var relicsApi = require("../data/relics");
+var relicSetsApi = require("../data/relicSets");
 var enhApi = require("../data/enhancements");
 var achievementsApi = require("../data/achievements");
 
@@ -61,11 +62,14 @@ function buildRows(state, tab) {
     for (i = 0; i < relicsApi.RELICS.length; i += 1) {
       var relic = relicsApi.RELICS[i];
       var owned = !!codex.relics[relic.id];
+      var set = relicSetsApi.forRelic(relic.id);
       rows.push({
         id: relic.id,
         name: owned ? relic.name : "？？？",
         unlocked: owned,
-        desc: owned ? relic.desc : "尚未获得",
+        desc: owned
+          ? (set ? "「" + set.name + "」· " + relic.desc : relic.desc)
+          : (set ? "尚未获得 · 属于「" + set.name + "」" : "尚未获得"),
         color: owned ? P.teal : P.inkFaint
       });
     }

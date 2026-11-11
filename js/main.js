@@ -52,6 +52,9 @@ if (!state) {
   state = stateApi.createDefaultState(platform.now());
 }
 stateApi.handleDailyLogin(state, platform.now());
+// 老存档（序列上线前）没有 setActive 记账，这里补发应得的序列档位；
+// 已有记账的存档调用是空操作，不会二次加属性。
+stateApi.reconcileSets(state);
 
 /* ---------------- 存档（节流 + 后台立即落盘） ---------------- */
 
