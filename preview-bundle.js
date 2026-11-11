@@ -958,6 +958,10 @@ function backdrop(ctx, screen, tone, opts) {
   var o = opts || {};
   var t = o.tone || tone;
   var offset = o.offset || 0;
+  // 车厢主题只管两处色：顶部光晕与车窗光带。其余用统一调色板，
+  // 免得主题一多就出现「整个界面跟着变色」的失控感。
+  var glow = o.glow || "rgba(79,192,176,0.16)";
+  var beamColor = o.beam || "rgba(224,177,92,0.10)";
   var w = screen.width;
   var h = screen.height;
 
@@ -967,14 +971,14 @@ function backdrop(ctx, screen, tone, opts) {
   // 远景：顶部光晕
   if (typeof ctx.createLinearGradient === "function") {
     var g = ctx.createLinearGradient(0, 0, 0, h * 0.55);
-    g.addColorStop(0, "rgba(79,192,176,0.16)");
+    g.addColorStop(0, glow);
     g.addColorStop(1, "rgba(79,192,176,0)");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h * 0.55);
 
     // 中景：斜向光带（车窗透进来的光），随 offset 缓慢移动
     var beam = ctx.createLinearGradient(0, h * 0.12, w, h * 0.62);
-    beam.addColorStop(0, "rgba(224,177,92,0.10)");
+    beam.addColorStop(0, beamColor);
     beam.addColorStop(0.45, "rgba(224,177,92,0.02)");
     beam.addColorStop(1, "rgba(224,177,92,0)");
     ctx.fillStyle = beam;
@@ -2057,7 +2061,7 @@ define("js/game/config.js", function(module, exports, require) {
 
 module.exports = {
   /** 存档结构版本：改动 state 结构必须 +1，并在 storage 里补迁移 */
-  schemaVersion: 4,
+  schemaVersion: 5,
   storageKey: "train-mystery-v3-save",
   legacyKeys: ["train-mystery-douyin-save-v2", "train-mystery-roguelike-save-v4"],
 
@@ -2554,6 +2558,8 @@ var ENEMIES = [
   },
   {
     id: "shallowWisp",
+
+    themes: ["frost"],
     name: "浅域游魂",
     kind: "normal",
     trait: "wisp",
@@ -2593,6 +2599,8 @@ var ENEMIES = [
   },
   {
     id: "corpseLamp",
+
+    themes: ["ember"],
     name: "尸灯",
     kind: "normal",
     trait: "vampire",
@@ -2619,6 +2627,8 @@ var ENEMIES = [
   },
   {
     id: "glassEcho",
+
+    themes: ["frost"],
     name: "玻璃回响",
     kind: "normal",
     trait: "mirror",
@@ -2632,6 +2642,8 @@ var ENEMIES = [
   },
   {
     id: "cinderHound",
+
+    themes: ["ember"],
     name: "灰烬猎犬",
     kind: "normal",
     trait: "bomber",
@@ -2658,6 +2670,8 @@ var ENEMIES = [
   },
   {
     id: "ironMoth",
+
+    themes: ["frost"],
     name: "铁翼蛾",
     kind: "normal",
     trait: "armored",
@@ -2671,6 +2685,8 @@ var ENEMIES = [
   },
   {
     id: "wailingBride",
+
+    themes: ["frost"],
     name: "哀鸣新娘",
     kind: "normal",
     trait: "vampire",
@@ -2725,6 +2741,8 @@ var ENEMIES = [
   },
   {
     id: "twinEcho",
+
+    themes: ["frost"],
     name: "双生回响",
     kind: "elite",
     trait: "mirror",
@@ -2766,6 +2784,8 @@ var ENEMIES = [
   },
   {
     id: "rustStoker",
+
+    themes: ["ember"],
     name: "锈血司炉",
     kind: "boss",
     trait: "armored",
@@ -2793,6 +2813,8 @@ var ENEMIES = [
   /* ---------------- 普通 · 第二批 ---------------- */
   {
     id: "threadWeaver",
+
+    themes: ["frost"],
     name: "织网蛛",
     kind: "normal",
     trait: "weaver",
@@ -2819,6 +2841,8 @@ var ENEMIES = [
   },
   {
     id: "frenziedMiner",
+
+    themes: ["ember"],
     name: "狂乱矿工",
     kind: "normal",
     trait: "enrage",
@@ -2845,6 +2869,8 @@ var ENEMIES = [
   },
   {
     id: "ashPilgrim",
+
+    themes: ["ember"],
     name: "灰烬朝圣者",
     kind: "normal",
     trait: "wisp",
@@ -2886,6 +2912,8 @@ var ENEMIES = [
   /* ---------------- 精英 · 第二批 ---------------- */
   {
     id: "weaverMatron",
+
+    themes: ["frost"],
     name: "织巢母体",
     kind: "elite",
     trait: "weaver",
@@ -2899,6 +2927,8 @@ var ENEMIES = [
   },
   {
     id: "hollowKing",
+
+    themes: ["ember"],
     name: "空洞之王",
     kind: "elite",
     trait: "enrage",
@@ -3205,6 +3235,8 @@ var EVENTS = [
   },
   {
     id: "oldDevice",
+
+    themes: ["ember"],
     title: "旧世界装置",
     text: "一台还在嗡鸣的旧世界装置，面板上的指示灯忽明忽暗。",
     weight: 9,
@@ -3230,6 +3262,8 @@ var EVENTS = [
   },
   {
     id: "silentConductor",
+
+    themes: ["frost"],
     title: "沉默乘务员",
     text: "一位旧制服乘务员站在过道尽头，向你摊开手掌，什么也不说。",
     weight: 7,
@@ -3252,6 +3286,8 @@ var EVENTS = [
   },
   {
     id: "frozenDiner",
+
+    themes: ["frost"],
     title: "结霜餐车",
     text: "餐车的窗上结着厚厚的白霜，炉子还温着。热气里有种久违的味道。",
     weight: 11,
@@ -3371,6 +3407,8 @@ var EVENTS = [
   },
   {
     id: "bloodCar",
+
+    themes: ["ember"],
     title: "采血车厢",
     text: "一节挂着红十字的旧车厢，椅子上还留着束带。墙上的告示写着「有偿」。",
     weight: 8,
@@ -3395,6 +3433,8 @@ var EVENTS = [
   },
   {
     id: "mirrorPlatform",
+
+    themes: ["frost"],
     title: "镜面站台",
     text: "站台地面像镜子一样，倒影里的你比你慢了半步，并且一直在看你。",
     weight: 8,
@@ -3487,6 +3527,8 @@ var EVENTS = [
   },
   {
     id: "derailWreck",
+
+    themes: ["ember"],
     title: "脱轨残骸",
     text: "一节脱轨的车厢斜插在裂隙边缘，里面可能还有东西，也可能随时塌下去。",
     weight: 8,
@@ -3618,6 +3660,8 @@ var EVENTS = [
   },
   {
     id: "frozenTank",
+
+    themes: ["frost"],
     title: "结冰的水箱",
     text: "水箱表面结着厚冰，冰层下有东西在缓慢移动，看不出是什么。",
     weight: 10,
@@ -3711,6 +3755,8 @@ var EVENTS = [
   },
   {
     id: "pendulum",
+
+    themes: ["frost"],
     title: "停在半空的钟摆",
     text: "车厢顶上的钟摆悬在半空，既没有下落，也没有回摆。",
     weight: 9,
@@ -3763,6 +3809,8 @@ var EVENTS = [
   },
   {
     id: "leakingValve",
+
+    themes: ["ember"],
     title: "漏气的阀门",
     text: "一根管子嘶嘶漏着白气，阀门上缠着别人留下的布条。",
     weight: 10,
@@ -4091,8 +4139,14 @@ function getById(id) {
   return null;
 }
 
-/** 按层数与权重抽取（排除最近出现过的 id；链事件不进随机池） */
-function roll(pickRandom, layer, recentIds) {
+/**
+ * 按层数与权重抽取（排除最近出现过的 id；链事件不进随机池）
+ *
+ * themeId 只调权重、不排除任何人：打了别的主题标签的事件降到 0.4 倍，
+ * 通用事件（没有 themes 字段）保持 1 倍。硬过滤会让主题专属事件被排除后
+ * 池子变空、最后还是得 fallback，不如一开始就用权重。
+ */
+function roll(pickRandom, layer, recentIds, themeId) {
   var recent = recentIds || [];
   var pool = [];
   EVENTS.forEach(function (event) {
@@ -4100,6 +4154,9 @@ function roll(pickRandom, layer, recentIds) {
     if (layer < (event.minLayer || 1)) return;
     if (recent.indexOf(event.id) >= 0) return;
     var weight = event.weight || 10;
+    if (themeId && event.themes && event.themes.length) {
+      weight = Math.round(weight * (event.themes.indexOf(themeId) >= 0 ? 3 : 0.4));
+    }
     var i;
     for (i = 0; i < weight; i += 1) pool.push(event);
   });
@@ -4589,6 +4646,105 @@ module.exports = {
       "遇到版本异常或存档问题，可通过重置存档恢复初始状态。"
     ]
   }
+};
+
+});
+
+define("js/game/data/themes.js", function(module, exports, require) {
+/**
+ * data/themes.js —— 车厢主题
+ *
+ * 主题 = 一组「规则修饰符」+ 一套背景色 + 一份内容权重偏好。
+ * 修饰符字段刻意与 daily.combine() 的输出同形，合并逻辑只写一次（state.modsOf）。
+ *
+ * 纯数据文件：只导出表和查表函数，不放任何玩法计算。
+ */
+
+var THEMES = [
+  {
+    id: "rust",
+    name: "锈蚀车厢",
+    subtitle: "停在这里的第七年",
+    desc: "车厢早该报废了，扶手一碰就掉锈。这里没有额外的规矩，只有一趟最普通的路。",
+    unlockCost: 0,
+    accent: "#E0B15C",
+    glow: "rgba(79,192,176,0.16)",
+    beam: "rgba(224,177,92,0.10)",
+    rules: [
+      "无额外修正",
+      "资源消耗与掉落均为标准值"
+    ],
+    mods: {}
+  },
+  {
+    id: "frost",
+    name: "霜封车厢",
+    subtitle: "呼吸都会结在窗上",
+    desc: "车窗结了厚霜，怪物的关节冻得发僵，可铁皮也冻硬了。冷风一路抽走你的力气，走路格外耗神，得靠更多补给撑着。",
+    unlockCost: 150,
+    accent: "#8FC4DE",
+    glow: "rgba(120,190,220,0.18)",
+    beam: "rgba(190,225,245,0.11)",
+    rules: [
+      "敌人生命 +15%",
+      "敌人伤害 -15%",
+      "每层额外消耗 1 点饱食",
+      "开局额外 20 以太"
+    ],
+    mods: {
+      enemyHpMul: 1.15,
+      enemyDamageMul: 0.85,
+      hungerPerNodeDelta: 1,
+      startEtherBonus: 20
+    }
+  },
+  {
+    id: "ember",
+    name: "焚炉车厢",
+    subtitle: "地板下面就是火",
+    desc: "锅炉烧穿了地板，热浪把两边都逼急了：它们出手更狠，但值钱的东西也更多。这里的商店还便宜些，适合攒局外资源。",
+    unlockCost: 220,
+    accent: "#E58A5C",
+    glow: "rgba(226,110,70,0.20)",
+    beam: "rgba(238,150,90,0.12)",
+    rules: [
+      "敌人伤害 +8%",
+      "战斗金币 +40%",
+      "商店价格 -15%",
+      "开局额外 30 以太"
+    ],
+    mods: {
+      enemyDamageMul: 1.08,
+      goldMul: 1.4,
+      shopPriceMul: 0.85,
+      startEtherBonus: 30
+    }
+  }
+];
+
+function getById(id) {
+  var i;
+  for (i = 0; i < THEMES.length; i += 1) {
+    if (THEMES[i].id === id) return THEMES[i];
+  }
+  return null;
+}
+
+function ids() {
+  return THEMES.map(function (theme) { return theme.id; });
+}
+
+/** 主题未解锁时显示的价格；已解锁返回 0 */
+function unlockCostOf(id) {
+  var theme = getById(id);
+  return theme ? theme.unlockCost : 0;
+}
+
+module.exports = {
+  THEMES: THEMES,
+  getById: getById,
+  ids: ids,
+  unlockCostOf: unlockCostOf
 };
 
 });
@@ -6715,6 +6871,195 @@ module.exports = {
 
 });
 
+define("js/game/modals/themes.js", function(module, exports, require) {
+/**
+ * modals/themes.js —— 车厢主题选择
+ *
+ * 出发前决定：选哪节车厢，就接受哪套规则。
+ * 规则一旦出发就不能改（中途改会被利用成「快死了切霜封减伤」），
+ * 所以这里只在 run 未开始时允许切换；局内打开时只做展示。
+ */
+
+var draw = require("../../core/draw");
+var ui = require("../../core/ui");
+var common = require("../ui-common");
+var stateApi = require("../state");
+var themesApi = require("../data/themes");
+
+var P = draw.PALETTE;
+
+function cardHeight(screen) {
+  return screen.px(104);
+}
+
+function render(ctx, screen, state) {
+  var s = screen.s;
+  var runActive = !!(state.run && state.run.active);
+  var current = stateApi.selectedThemeId(state);
+
+  var panel = common.modalPanel(screen, screen.px(512));
+  draw.panel(ctx, panel, {
+    radius: Math.round(16 * s),
+    fillTop: "#1F3140",
+    fillBottom: "#101C25",
+    strokeColor: "rgba(224,177,92,0.40)"
+  });
+
+  var pad = screen.px(16);
+  var y = common.modalTitle(ctx, screen, panel, "车厢主题",
+    runActive ? "本局已锁定，下一局生效" : "选一节车厢，接受它的规矩");
+
+  var list = themesApi.THEMES;
+  var cards = screen.col({
+    x: panel.x + pad,
+    y: y,
+    w: panel.w - pad * 2,
+    h: cardHeight(screen) * list.length + screen.px(10) * (list.length - 1)
+  }, list.length, screen.px(10));
+
+  list.forEach(function (theme, i) {
+    var rect = cards[i];
+    var unlocked = stateApi.themeUnlocked(state, theme.id);
+    var isSelected = theme.id === current;
+    var cost = themesApi.unlockCostOf(theme.id);
+    var affordable = state.player.ether >= cost;
+
+    draw.panel(ctx, rect, isSelected
+      ? {
+        radius: Math.round(12 * s),
+        fillTop: "rgba(224,177,92,0.18)",
+        fillBottom: "rgba(224,177,92,0.05)",
+        strokeColor: theme.accent
+      }
+      : {
+        radius: Math.round(12 * s),
+        fill: "#14232E",
+        strokeColor: "rgba(120,150,170,0.28)"
+      });
+
+    // 左侧色条：主题的识别色，和背景光晕同源
+    ctx.save();
+    ctx.fillStyle = unlocked ? theme.accent : "rgba(120,150,170,0.35)";
+    ctx.fillRect(rect.x, rect.y + screen.px(12), screen.px(3), rect.h - screen.px(24));
+    ctx.restore();
+
+    var tx = rect.x + screen.px(14);
+    var title = theme.name + (unlocked ? "" : " · 未解锁");
+    draw.text(ctx, title, tx, rect.y + screen.px(10), {
+      size: screen.fz(14),
+      bold: true,
+      color: isSelected ? theme.accent : unlocked ? P.ink : P.inkDim
+    });
+    draw.text(ctx, theme.subtitle, rect.x + rect.w - screen.px(12), rect.y + screen.px(12), {
+      size: screen.fz(10),
+      align: "right",
+      color: P.inkFaint
+    });
+    draw.text(ctx, theme.rules.join(" · "), tx, rect.y + screen.px(32), {
+      size: screen.fz(10),
+      color: P.inkDim,
+      wrap: rect.w - screen.px(30),
+      lineHeight: screen.px(15)
+    });
+
+    // 右下角状态：已选 / 可切换 / 价格
+    var statusText;
+    if (isSelected) {
+      statusText = "当前";
+    } else if (!unlocked) {
+      statusText = cost + " 以太解锁";
+    } else {
+      statusText = "点击切换";
+    }
+    draw.text(ctx, statusText, rect.x + rect.w - screen.px(12), rect.y + rect.h - screen.px(24), {
+      size: screen.fz(10),
+      align: "right",
+      color: !unlocked && !affordable ? P.red : isSelected ? P.gold : P.inkFaint
+    });
+
+    var hitId = !unlocked ? "theme:unlock:" + theme.id : "theme:select:" + theme.id;
+    if (runActive && !unlocked) hitId = null;   // 局内不让花以太，避免误触
+    if (hitId) {
+      ui.pushHit({ id: hitId, rect: rect, meta: { themeId: theme.id }, kind: "theme" });
+    }
+  });
+
+  var footerY = panel.y + panel.h - pad - screen.px(42);
+  var canStart = !runActive;
+  ui.button(ctx, {
+    id: canStart ? "theme:start" : "theme:close",
+    rect: { x: panel.x + pad, y: footerY, w: panel.w - pad * 2, h: screen.px(42) },
+    label: canStart ? "登上这节车厢" : "返回路线图",
+    style: canStart ? "primary" : "ghost",
+    size: screen.fz(15)
+  });
+
+  if (!canStart) {
+    draw.text(ctx, "改变主意请在下一局出发前切换。", panel.x + panel.w / 2, footerY - screen.px(16), {
+      size: screen.fz(10),
+      align: "center",
+      color: P.inkFaint
+    });
+  }
+}
+
+function onAction(action, state, app) {
+  var id = action.id;
+
+  if (id.indexOf("theme:select:") === 0) {
+    var pick = id.slice("theme:select:".length);
+    var r1 = stateApi.selectTheme(state, pick);
+    if (r1.ok) {
+      if (app.sound) app.sound("step", 0.6);
+      app.commit();
+    } else {
+      if (app.sound) app.sound("alert", 0.4);
+      app.toast(r1.reason === "locked" ? "这节车厢还没接通" : "切换失败");
+    }
+    return true;
+  }
+
+  if (id.indexOf("theme:unlock:") === 0) {
+    var want = id.slice("theme:unlock:".length);
+    var r2 = stateApi.unlockTheme(state, want);
+    if (r2.ok) {
+      if (app.sound) app.sound("coin", 0.7);
+      app.commit();
+      app.toast("已接通「" + themesApi.getById(want).name + "」");
+    } else {
+      if (app.sound) app.sound("alert", 0.5);
+      app.toast(r2.reason === "poor" ? "以太不足" : "无法解锁");
+    }
+    return true;
+  }
+
+  if (id === "theme:start") {
+    if (state.run && state.run.active) {
+      app.toast("先结束当前探索");
+      return true;
+    }
+    if (app.sound) app.sound("step", 0.85);
+    stateApi.startRun(state, app.now());
+    app.commit();
+    app.go("route");
+    return true;
+  }
+
+  if (id === "theme:close") {
+    app.closeModal();
+    return true;
+  }
+
+  return false;
+}
+
+module.exports = {
+  render: render,
+  onAction: onAction
+};
+
+});
+
 define("js/game/modals/trainUpgrade.js", function(module, exports, require) {
 /**
  * modals/trainUpgrade.js —— 列车长期升级（5 个模块）
@@ -6864,7 +7209,8 @@ module.exports = {
     settings: require("./modals/settings"),
     trainUpgrade: require("./modals/trainUpgrade"),
     codex: require("./modals/codex"),
-    daily: require("./modals/daily")
+    daily: require("./modals/daily"),
+    themes: require("./modals/themes")
   }
 };
 
@@ -7106,6 +7452,7 @@ var common = require("../ui-common");
 var stateApi = require("../state");
 var mapApi = require("../map");
 var nodesData = require("../data/nodes");
+var themesApi = require("../data/themes");
 
 var P = draw.PALETTE;
 
@@ -7122,12 +7469,14 @@ function laneX(mapRect, lane, count) {
 function render(ctx, screen, state, animator) {
   var s = screen.s;
   var run = state.run;
-  draw.backdrop(ctx, screen);
+  var theme = themesApi.getById(run.theme) || themesApi.getById("rust");
+  draw.backdrop(ctx, screen, null, { glow: theme.glow, beam: theme.beam });
 
-  common.header(ctx, screen, "路线图", "第 " + (run.layer + 1) + " / " + run.layers.length + " 层 · 已走 " + run.nodesVisited + " 个节点", {
-    id: "route:collection",
-    label: "构筑"
-  });
+  common.header(ctx, screen, "路线图",
+    theme.name + " · 第 " + (run.layer + 1) + " / " + run.layers.length + " 层 · 已走 " + run.nodesVisited + " 个节点", {
+      id: "route:collection",
+      label: "构筑"
+    });
 
   var content = screen.content();
   var resRect = { x: content.x, y: content.y, w: content.w, h: screen.px(42) };
@@ -7143,6 +7492,28 @@ function render(ctx, screen, state, animator) {
   var available = mapApi.available(run.layers, run.currentNodeId);
   var availIds = {};
   available.forEach(function (node) { availIds[node.id] = true; });
+
+  // 主题小胶囊：局中只做查询（点开看这节车厢的规矩），不能改
+  var chip = {
+    x: mapRect.x + mapRect.w - screen.px(58),
+    y: mapRect.y - screen.px(4),
+    w: screen.px(58),
+    h: screen.px(20)
+  };
+  ctx.save();
+  draw.rr(ctx, chip.x, chip.y, chip.w, chip.h, screen.px(10));
+  ctx.fillStyle = "rgba(20,35,46,0.85)";
+  ctx.fill();
+  ctx.strokeStyle = theme.accent;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.restore();
+  draw.text(ctx, theme.name, chip.x + chip.w / 2, chip.y + screen.px(6), {
+    size: screen.fz(9),
+    align: "center",
+    color: theme.accent
+  });
+  ui.pushHit({ id: "route:theme", rect: chip, kind: "chip" });
 
   // 连线（先画，压在节点下面）
   ctx.save();
@@ -7271,6 +7642,10 @@ function onAction(action, state, app) {
     app.openInfo("collection");
     return true;
   }
+  if (id === "route:theme") {
+    app.openModal("themes", { readOnly: true });
+    return true;
+  }
   if (id === "route:abandon") {
     stateApi.abandonRun(state);
     app.commit();
@@ -7312,12 +7687,15 @@ var common = require("../ui-common");
 var stateApi = require("../state");
 var config = require("../config");
 var text = require("../data/text");
+var themesApi = require("../data/themes");
 
 var P = draw.PALETTE;
 
 function render(ctx, screen, state, animator) {
   var s = screen.s;
-  draw.backdrop(ctx, screen);
+  // 主城按「下一局要走的车厢」上色：选完主题不用出发就能看到变化
+  var tint = themesApi.getById(stateApi.selectedThemeId(state)) || themesApi.getById("rust");
+  draw.backdrop(ctx, screen, null, { glow: tint.glow, beam: tint.beam });
 
   common.header(ctx, screen, text.train.title, "第 " + (state.progress.runsStarted + 1) + " 次出发准备", {
     id: "train:home",
@@ -7363,13 +7741,14 @@ function render(ctx, screen, state, animator) {
 
   y = heroRect.y + heroRect.h + screen.px(14);
 
-  // 主按钮：出发 / 继续
+  // 主按钮：出发 / 继续。主题名放进副标题，让「这局走哪节车厢」一眼可见。
+  var themeNow = themesApi.getById(stateApi.selectedThemeId(state));
   var primary = { x: content.x, y: y, w: content.w, h: screen.px(56) };
   ui.button(ctx, {
     id: hasRun ? "train:continue" : "train:depart",
     rect: primary,
     label: hasRun ? "继续探索" : text.train.depart,
-    sub: hasRun ? "回到路线图" : "精神 -" + config.sanityPerRun,
+    sub: hasRun ? "回到路线图" : "精神 -" + config.sanityPerRun + " · " + (themeNow ? themeNow.name : "车厢"),
     style: "primary",
     size: screen.fz(18)
   });
@@ -7471,13 +7850,10 @@ function onAction(action, state, app) {
     return true;
   }
   if (id === "train:depart") {
-    // 不做精神硬门槛：startRun 里会把精神保底到 40 再扣本局成本，
-    // 加硬门槛会让玩家卡在「走不了、也恢复不了」的死锁里。
-    if (app.sound) app.sound("step", 0.85);
-    stateApi.startRun(state, app.now());
-    app.commit();
-    app.go("route");
-    app.toast("路线已展开，选择你的下一站");
+    // 先选车厢再出发：主题是「这一局接受什么规矩」的决定，
+    // 放在开局前一步，比塞进功能区更容易被看见。
+    // 精神门槛仍然不设：startRun 里会把精神保底到 40 再扣本局成本。
+    app.openModal("themes", { from: "train" });
     return true;
   }
   if (id === "train:upgrade") {
@@ -7546,6 +7922,7 @@ var effectsApi = require("./data/effects");
 var affixesApi = require("./data/affixes");
 var achievementsApi = require("./data/achievements");
 var dailyApi = require("./data/daily");
+var themesApi = require("./data/themes");
 
 /* ---------------- 基础工具 ---------------- */
 
@@ -7627,6 +8004,8 @@ function createRun(seed) {
     eventChain: null,
     /** 每日挑战信息：普通局为 null */
     daily: null,
+    /** 本局车厢主题 id（route 场景可切换，只影响本局） */
+    theme: "rust",
     stats: {
       battlesWon: 0,
       damageDealt: 0,
@@ -7635,6 +8014,115 @@ function createRun(seed) {
       shopsVisited: 0
     }
   };
+}
+
+/* ---------------- 修正符（每日条件 + 车厢主题） ---------------- */
+
+/**
+ * 把「每日限制」与「车厢主题」合并成一套修正符。
+ *
+ * 两边的字段形状刻意做成一致（daily.combine 的输出），所以合并只写一次，
+ * 消费点也只需要读 run 的合并结果，不用各自判断来源。
+ * 加法字段（delta）相加，乘法字段（mul）相乘。
+ */
+function modsOf(run) {
+  var out = {
+    maxHpDelta: 0,
+    hungerPerNodeDelta: 0,
+    enemyDamageMul: 1,
+    sanityCostMul: 1,
+    enhanceChoiceDelta: 0,
+    shopPriceMul: 1,
+    enemyHpMul: 1,
+    goldMul: 1,
+    startEtherBonus: 0
+  };
+
+  function merge(m) {
+    if (!m) return;
+    out.maxHpDelta += m.maxHpDelta || 0;
+    out.hungerPerNodeDelta += m.hungerPerNodeDelta || 0;
+    out.enemyDamageMul *= m.enemyDamageMul || 1;
+    out.sanityCostMul *= m.sanityCostMul || 1;
+    out.enhanceChoiceDelta += m.enhanceChoiceDelta || 0;
+    out.shopPriceMul *= m.shopPriceMul || 1;
+    out.enemyHpMul *= m.enemyHpMul || 1;
+    out.goldMul *= m.goldMul || 1;
+    out.startEtherBonus += m.startEtherBonus || 0;
+  }
+
+  if (run && run.daily) merge(run.daily.combined);
+  var theme = run && run.theme ? themesApi.getById(run.theme) : null;
+  if (theme) merge(theme.mods);
+  return out;
+}
+
+/**
+ * 主题亲和权重：喜欢的 ×3，明确属于别的主题的 ×0.4，
+ * 没打标签的 ×1（通用）。用权重而不是硬过滤——硬过滤会让池子在
+ * 低层数下变空，最后还是会 fallback，等于白写。
+ */
+function themeWeight(list, themeId) {
+  if (!list || !list.length || !themeId) return 1;
+  return list.indexOf(themeId) >= 0 ? 3 : 0.4;
+}
+
+/** 按权重展开成桶再随机取一个，保持与 rng.pick 一致的确定性 */
+function weightedPick(list, themeId) {
+  var basket = [];
+  var i;
+  var j;
+  for (i = 0; i < list.length; i += 1) {
+    var n = Math.round(themeWeight(list[i].themes, themeId) * 4);
+    for (j = 0; j < n; j += 1) basket.push(list[i]);
+  }
+  if (!basket.length) basket = list;
+  return rng.pick(basket);
+}
+
+/* ---------------- 主题解锁与选择 ---------------- */
+
+function themeUnlocked(state, id) {
+  var list = state.progress.themeUnlocked || [];
+  return list.indexOf(id) >= 0;
+}
+
+function selectedThemeId(state) {
+  var id = state.progress.themeSelected;
+  if (id && themesApi.getById(id) && themeUnlocked(state, id)) return id;
+  return "rust";
+}
+
+function themeSummary(state) {
+  var unlocked = state.progress.themeUnlocked || [];
+  return {
+    selected: selectedThemeId(state),
+    total: themesApi.THEMES.length,
+    unlocked: unlocked.length
+  };
+}
+
+function selectTheme(state, id) {
+  if (!themesApi.getById(id)) return { ok: false, reason: "unknown" };
+  if (!themeUnlocked(state, id)) return { ok: false, reason: "locked" };
+  // 局内不允许改：换主题会立刻改敌人伤害倍率，
+  // 「快死了切霜封」这类操作会把难度设计作废。本局锁定，下一局生效。
+  if (state.run && state.run.active) return { ok: false, reason: "inRun" };
+  state.progress.themeSelected = id;
+  return { ok: true, id: id };
+}
+
+function unlockTheme(state, id) {
+  var theme = themesApi.getById(id);
+  if (!theme) return { ok: false, reason: "unknown" };
+  if (themeUnlocked(state, id)) return { ok: false, reason: "owned" };
+  if (state.run && state.run.active) return { ok: false, reason: "inRun" };
+  if (state.player.ether < theme.unlockCost) return { ok: false, reason: "poor" };
+  state.player.ether -= theme.unlockCost;
+  state.progress.themeUnlocked.push(id);
+  state.progress.themeSelected = id;
+  pushLog(state, "解锁", "「" + theme.name + "」已接通，路线图上可以切换了。");
+  return { ok: true, id: id, cost: theme.unlockCost };
 }
 
 function createDefaultState(now) {
@@ -7704,7 +8192,10 @@ function createDefaultState(now) {
         clears: 0,
         attempts: 0,
         bestLayer: -1
-      }
+      },
+      /** 已解锁的车厢主题（rust 默认解锁） */
+      themeUnlocked: ["rust"],
+      themeSelected: "rust"
     },
     current: {
       scene: "home",
@@ -8072,20 +8563,25 @@ function startRun(state, now, mode) {
   var run = createRun(seed);
   run.active = true;
   run.daily = daily;
+  // 每日挑战固定走锈蚀车厢：它承诺「同一天全服同一套条件」，
+  // 主题会改敌人伤害/血量倍率，让不同玩家比不同难度就失去意义了。
+  run.theme = isDaily ? "rust" : selectedThemeId(state);
   run.layers = mapApi.generate(seed);
   state.run = run;
   state.current.scene = "route";
   state.current.modal = null;
   state.current.modalData = null;
 
+  var mods = modsOf(run);
+  var themeDef = themesApi.getById(run.theme);
+
   // 生命上限每局重算：局内强化加的 maxHpBonus 不该带到下一局
-  var maxHpDelta = daily ? daily.combined.maxHpDelta : 0;
-  state.player.maxHp = clamp(config.maxHp + maxHpDelta, 40, 500);
+  state.player.maxHp = clamp(config.maxHp + mods.maxHpDelta, 40, 500);
   state.player.hp = state.player.maxHp;
 
   // 出发整备：精神保底 40 再扣本局成本
   // 保底的意义：单机产品不能让玩家卡在「精神太低无法出发」的死锁里
-  var sanityCost = Math.round(config.sanityPerRun * (daily ? daily.combined.sanityCostMul : 1));
+  var sanityCost = Math.round(config.sanityPerRun * mods.sanityCostMul);
   state.player.sanity = clamp(Math.max(state.player.sanity, 40) - sanityCost, 0, config.maxSanity);
   if (state.player.hunger < 50) state.player.hunger = 50;
 
@@ -8096,11 +8592,18 @@ function startRun(state, now, mode) {
   if (daily && typeof daily.combined.startEther === "number") {
     state.player.ether = daily.combined.startEther;
   }
+  if (mods.startEtherBonus > 0) {
+    grantCurrency(state, { ether: mods.startEtherBonus });
+  }
 
   if (isDaily) {
     pushLog(state, "每日挑战", dailyLogText(daily));
   } else {
-    pushLog(state, "出发", "列车穿过裂隙，新的路线图已经展开。");
+    pushLog(state, "出发", "列车穿过裂隙，" +
+      (themeDef && themeDef.id !== "rust" ? "驶入「" + themeDef.name + "」。" : "新的路线图已经展开。"));
+  }
+  if (themeDef && themeDef.id !== "rust") {
+    pushLog(state, "车厢主题", themeDef.rules.join(" · "));
   }
   return state.run;
 }
@@ -8139,8 +8642,7 @@ function travelTo(state, nodeId) {
 
   // 移动成本
   run.nodesVisited += 1;
-  var dailyHunger = run.daily ? run.daily.combined.hungerPerNodeDelta : 0;
-  var hungerCost = Math.max(1, config.hungerPerNode + run.effects.hungerCostDelta + dailyHunger);
+  var hungerCost = Math.max(1, config.hungerPerNode + run.effects.hungerCostDelta + modsOf(run).hungerPerNodeDelta);
   state.player.hunger = clamp(state.player.hunger - hungerCost, 0, config.maxHunger);
 
   if (run.effects.foodRecoveryEveryTwo > 0 && run.nodesVisited % 2 === 0) {
@@ -8188,29 +8690,32 @@ function enterNode(state, node) {
 
 /* ---------------- 战斗 ---------------- */
 
-function pickEnemy(kind, layer) {
+function pickEnemy(kind, layer, themeId) {
   if (kind === "boss") {
     // Boss 也从池里随机：三场通关不重样，是重复游玩的最低成本手段
     var bosses = enemiesApi.byKind("boss");
-    return rng.pick(bosses.length ? bosses : [enemiesApi.getById("riftWarden")]);
+    return weightedPick(bosses.length ? bosses : [enemiesApi.getById("riftWarden")], themeId);
   }
   var pool = enemiesApi.poolFor(kind === "elite" ? "elite" : "normal", layer);
   if (!pool.length) pool = enemiesApi.byKind(kind === "elite" ? "elite" : "normal");
-  return rng.pick(pool);
+  return weightedPick(pool, themeId);
 }
 
 function startBattle(state, kind) {
   var run = state.run;
   var layer = run.layer >= 0 ? run.layer : 0;
-  var template = pickEnemy(kind, layer);
+  var template = pickEnemy(kind, layer, run.theme);
+  var mods = modsOf(run);
   var hpRange = template.kind === "normal" ? template.hpRange : template.hp;
   var hp = rng.int(hpRange[0], hpRange[1]);
 
   // 精英 = 基础敌人 + 1 个词缀；Boss 本身已有一套独立行为，不再叠词缀
   var affix = kind === "elite" ? affixesApi.rollFor(rng.pick) : null;
   if (affix) hp = Math.max(1, Math.round(hp * config.eliteHpMul));
+  // 车厢主题可以整体调血量（霜封更硬、焚炉更狠）
+  if (mods.enemyHpMul !== 1) hp = Math.max(1, Math.round(hp * mods.enemyHpMul));
 
-  var sanityCost = Math.round(config.sanityPerBattle * (run.daily ? run.daily.combined.sanityCostMul : 1));
+  var sanityCost = Math.round(config.sanityPerBattle * mods.sanityCostMul);
   state.player.sanity = clamp(state.player.sanity - sanityCost, 0, config.maxSanity);
   markEnemySeen(state, template.id);
 
@@ -8311,7 +8816,7 @@ function enemyTurn(state) {
   if (!battle || battle.over) return;
 
   var affix = battle.affix ? affixesApi.getById(battle.affix) : null;
-  var dailyMul = run.daily ? run.daily.combined.enemyDamageMul : 1;
+  var dailyMul = modsOf(run).enemyDamageMul;
 
   if (affix && affix.shieldEvery && battle.turn % affix.shieldEvery === 0) {
     battle.enemyShield += affix.shieldAmount;
@@ -8667,6 +9172,9 @@ function winBattle(state) {
   var gold = battle.reward.gold + run.effects.battleBonusGold;
   // 贪婪词缀：赏金翻倍（代价是攻击更狠，在 enemyTurn 里已生效）
   if (affixDef && affixDef.goldMul) gold = Math.round(gold * affixDef.goldMul);
+  // 车厢主题（焚炉）整体加金币
+  var goldMul = modsOf(run).goldMul;
+  if (goldMul !== 1) gold = Math.round(gold * goldMul);
   grantCurrency(state, { ether: battle.reward.ether, gold: gold });
   run.stats.battlesWon += 1;
   pushLog(state, "战斗胜利", "击败 " + battle.name + "，获得 " + battle.reward.ether + " 以太。");
@@ -8705,7 +9213,7 @@ function winBattle(state) {
 function openEnhance(state, count) {
   var run = state.run;
   var n = count || 3;
-  if (run && run.daily) n += run.daily.combined.enhanceChoiceDelta;
+  if (run) n += modsOf(run).enhanceChoiceDelta;
   var picks = enhApi.draw(rng.shuffle, clamp(n, 2, 5));
   state.run.pendingEnhancements = picks.map(function (item) {
     return { id: item.id, name: item.name, desc: item.desc, tag: item.tag };
@@ -8791,7 +9299,7 @@ function openEvent(state) {
     run.eventChain = { id: chainPick.chain, name: chainPick.chainName, stage: chainPick.stage, total: chainPick.total };
     pushLog(state, "线索", "「" + chainPick.chainName + "」第 " + chainPick.stage + " / " + chainPick.total + " 段。");
   } else {
-    event = eventsApi.roll(rng.pick, run.layer, run.recentEvents);
+    event = eventsApi.roll(rng.pick, run.layer, run.recentEvents, run.theme);
     run.eventChain = null;
   }
   run.eventId = event.id;
@@ -8828,8 +9336,9 @@ function canChooseEventOption(state, choice) {
 function applyEventGain(state, gain) {
   if (!gain) return;
   var boost = 1 + state.run.effects.eventRewardBoost;
+  var goldMul = modsOf(state.run).goldMul;
   if (gain.ether) grantCurrency(state, { ether: Math.round(gain.ether * boost) });
-  if (gain.gold) grantCurrency(state, { gold: gain.gold });
+  if (gain.gold) grantCurrency(state, { gold: Math.round(gain.gold * goldMul) });
   if (gain.hp) state.player.hp = clamp(state.player.hp + gain.hp, 1, state.player.maxHp);
   if (gain.sanity) state.player.sanity = clamp(state.player.sanity + gain.sanity, 0, config.maxSanity);
   if (gain.hunger) state.player.hunger = clamp(state.player.hunger + gain.hunger, 0, config.maxHunger);
@@ -8936,7 +9445,8 @@ function shopPrice(state, item) {
   if (typeof run.effects.firstShopDiscount === "number") {
     price = Math.ceil(price * run.effects.firstShopDiscount);
   }
-  if (run.daily) price = Math.ceil(price * run.daily.combined.shopPriceMul);
+  // 每日条件与主题的价格系数已在 modsOf 里相乘，这里只乘一次
+  price = Math.ceil(price * modsOf(run).shopPriceMul);
   return price;
 }
 
@@ -9114,6 +9624,13 @@ module.exports = {
   dailyInfo: dailyInfo,
   dailyUnlocked: dailyUnlocked,
   startDaily: startDaily,
+  // 车厢主题
+  modsOf: modsOf,
+  themeSummary: themeSummary,
+  themeUnlocked: themeUnlocked,
+  selectedThemeId: selectedThemeId,
+  selectTheme: selectTheme,
+  unlockTheme: unlockTheme,
   // 广告
   canWatchAd: canWatchAd,
   pushLog: pushLog,
@@ -9134,13 +9651,14 @@ define("js/game/storage.js", function(module, exports, require) {
 
 var config = require("./config");
 var stateApi = require("./state");
+var themesApi = require("./data/themes");
 var platform = require("../platform/platform");
 
 var SCENES = { home: 1, train: 1, route: 1 };
 var MODALS = {
   battle: 1, event: 1, eventResult: 1, enhance: 1, shop: 1,
   camp: 1, chest: 1, summary: 1, info: 1, settings: 1, trainUpgrade: 1, guide: 1,
-  codex: 1, daily: 1
+  codex: 1, daily: 1, themes: 1
 };
 
 function toInt(value, min, max, fallback) {
@@ -9258,6 +9776,25 @@ function sanitizeEnemyCodex(raw, limit) {
   return out;
 }
 
+/** 主题白名单：未知 id 一律丢弃（防改档写入不存在的主题导致渲染取不到配色） */
+function sanitizeThemeList(raw) {
+  var known = themesApi.ids();
+  var out = ["rust"];
+  if (!Array.isArray(raw)) return out;
+  raw.forEach(function (id) {
+    if (typeof id !== "string") return;
+    if (known.indexOf(id) < 0) return;
+    if (out.indexOf(id) >= 0) return;
+    out.push(id);
+  });
+  return out;
+}
+
+function sanitizeThemeSelected(raw) {
+  if (typeof raw !== "string") return "rust";
+  return themesApi.getById(raw) ? raw : "rust";
+}
+
 function clampProgress(raw) {
   var p = raw || {};
   var up = p.trainUpgrades || {};
@@ -9305,7 +9842,10 @@ function clampProgress(raw) {
       clears: toInt(daily.clears, 0, 999999, 0),
       attempts: toInt(daily.attempts, 0, 999999, 0),
       bestLayer: toInt(daily.bestLayer, -1, 99, -1)
-    }
+    },
+    // 主题：只接受 themes.js 里存在的 id，rust 永远解锁（防止改档锁死自己）
+    themeUnlocked: sanitizeThemeList(p.themeUnlocked),
+    themeSelected: sanitizeThemeSelected(p.themeSelected)
   };
 }
 
@@ -9495,6 +10035,7 @@ function sanitizeRun(raw) {
       ? raw.recentEvents.filter(function (id) { return typeof id === "string"; }).slice(0, 3)
       : [],
     chains: sanitizeChains(raw.chains),
+    theme: themesApi.getById(raw.theme) ? raw.theme : "rust",
     eventChain: raw.eventChain && typeof raw.eventChain === "object"
       ? {
         id: typeof raw.eventChain.id === "string" ? raw.eventChain.id.slice(0, 24) : null,
