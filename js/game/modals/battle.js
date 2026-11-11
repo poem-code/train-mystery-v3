@@ -127,6 +127,12 @@ function render(ctx, screen, state, animator, clock) {
    *   enemyLunge —— 敌人扑咬时向玩家方向冲出去
    *   heroHurt  —— 玩家挨打时向左一顿
    */
+  /**
+   * 下回合预告。这是「敌人在憋什么」的唯一来源——界面不许自己再猜一遍，
+   * 否则状态与画面迟早对不上。
+   */
+  var tele = battle.telegraph || null;
+
   var recoil = animator.progress("enemyHit");
   var kick = recoil < 1 ? (1 - recoil) * screen.px(9) : 0;
   var enemySize = battle.boss ? screen.px(104) : screen.px(80);
@@ -149,11 +155,24 @@ function render(ctx, screen, state, animator, clock) {
   var hurtP = animator.progress("heroHurt");
   var hurt = hurtP < 1 ? 1 - hurtP : 0;
 
-  draw.figure(ctx, enemyX + kick - lunge * screen.px(26), stageCenter, enemySize,
+  /**
+   * 蓄势姿态：缩成一团、略微后仰。用 clock 做 0.9 秒一次的紧促脉动，
+   * 频率比呼吸快——「憋着劲」和「在呼吸」是两种节奏，玩家不看文字也分得出来。
+   * 幅度压得很小：这里要传达的是紧张感，不是把敌人画成一个弹簧。
+   */
+  var charging = tele && tele.kind === "charge" ? 1 : 0;
+  var chargePulse = charging
+    ? 0.5 + 0.5 * Math.sin(breatheT * Math.PI * 2 / 0.9)
+    : 0;
+  var gathering = tele && tele.kind === "swarm" ? 1 : 0;
+
+  draw.figure(ctx, enemyX + kick - lunge * screen.px(26) + charging * screen.px(4), stageCenter, enemySize,
     battle.figure, battle.color, battle.trait, {
-      bob: -screen.px(2.2) * enemyBreath,
-      sx: 1 + 0.14 * squash + 0.06 * lunge,
-      sy: 1 - 0.12 * squash - 0.04 * lunge
+      bob: -screen.px(2.2) * enemyBreath - charging * screen.px(1.2) * chargePulse,
+      sx: 1 + 0.14 * squash + 0.06 * lunge - 0.07 * charging + 0.02 * chargePulse * charging
+        + 0.03 * gathering,
+      sy: 1 - 0.12 * squash - 0.04 * lunge + 0.06 * charging - 0.02 * chargePulse * charging
+        - 0.02 * gathering
     });
   draw.figure(ctx, heroX - hurt * screen.px(5), stageCenter, screen.px(48),
     "hero", P.teal, "hero", {
@@ -161,6 +180,10 @@ function render(ctx, screen, state, animator, clock) {
       sx: 1 + 0.10 * hurt,
       sy: 1 - 0.09 * hurt
     });
+
+  if (tele) {
+    drawTelegraph(ctx, screen, enemyX, stageCenter, enemySize, tele, breatheT);
+  }
 
   layout.ex = enemyX;
   layout.ey = stageCenter - enemySize * 0.1;
@@ -243,11 +266,30 @@ function render(ctx, screen, state, animator, clock) {
     style: "teal",
     size: screen.fz(15)
   });
+  /**
+   * 防御按钮的「建议」高亮。
+   * 预警如果不能落到一个具体动作上，就只是噪音；所以预告重击/连击时，
+   * 把唯一能减伤的那个按钮圈出来。描边呼吸而不是换配色：换底色会让按钮
+   * 像是变成了另一个按钮，描边只表示「现在选它更划算」。
+   */
+  var adviseDefend = tele && (tele.kind === "charge" || tele.kind === "swarm");
+  if (adviseDefend) {
+    var ap = 0.5 + 0.5 * Math.sin(breatheT * Math.PI * 2 / 1.1);
+    ctx.save();
+    ctx.globalAlpha = 0.30 + 0.50 * ap;
+    ctx.strokeStyle = "#F2CD84";
+    ctx.lineWidth = Math.max(1, screen.px(1.6));
+    draw.rr(ctx, row2[0].x - screen.px(2), row2[0].y - screen.px(2),
+      row2[0].w + screen.px(4), row2[0].h + screen.px(4), screen.px(13));
+    ctx.stroke();
+    ctx.restore();
+  }
+
   ui.button(ctx, {
     id: "battle:defend",
     rect: row2[0],
     label: "防御架势",
-    sub: "+12 护盾 · 下击 +5",
+    sub: adviseDefend ? "挡下这记预告" : "+12 护盾 · 下击 +5",
     style: "ghost",
     size: screen.fz(15)
   });
@@ -333,6 +375,65 @@ function renderDeath(ctx, screen, state, r, top) {
     sub: "结算并返回列车",
     style: "ghost",
     size: screen.fz(14)
+  });
+}
+
+/**
+ * 敌人身侧的预告气泡。
+ *
+ * 为什么不在头顶：头顶那 20px 是血条、血量数字和护盾行占着的地盘，
+ * 早期版本把气泡放在头顶，正好压住「护盾 8」，而且窄屏上还会顶到面板右缘。
+ * 玩家与敌人之间的空白是面板里唯一一块没被占用的地方，气泡放这儿既能对上
+ * 剪影，又不和任何数字抢位置。
+ *
+ * 只写「下回合真要发生的事」：气泡上的数字就是结算时的数字，对不上比没提示更糟。
+ * 颜色按危险类型分，脉动 1.1 秒——比待机呼吸快，余光能捕捉，又不至于读不清字。
+ */
+function drawTelegraph(ctx, screen, cx, cy, enemySize, tele, t) {
+  var color = tele.kind === "weave" ? "#7ED8CB"
+    : tele.kind === "swarm" ? "#F0B45C" : "#F08A6A";
+  var fs = screen.fz(9);
+  var label = tele.label + " · " + tele.detail;
+  var padX = screen.px(8);
+  var w = Math.min(draw.measure(ctx, label, fs, true) + padX * 2 + screen.px(7), screen.px(150));
+  var h = screen.px(20);
+  var anchorX = cx - enemySize * 0.5 - screen.px(7);
+  var x = anchorX - screen.px(9) - w;
+  var y = cy - h / 2 + screen.px(3);
+  // 贴着面板左缘时收进来，宁可离剪影远一点，也不能把气泡画到面板外
+  var minX = screen.px(12);
+  if (x < minX) x = minX;
+  var pulse = 0.5 + 0.5 * Math.sin(t * Math.PI * 2 / 1.1);
+
+  draw.fillRR(ctx, { x: x, y: y, w: w, h: h }, "rgba(10,22,30,0.90)", screen.px(7));
+
+  ctx.save();
+  ctx.globalAlpha = 0.55 + 0.45 * pulse;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1, screen.px(1.2));
+  draw.rr(ctx, x, y, w, h, screen.px(7));
+  ctx.stroke();
+
+  // 左侧小圆点：与描边同频呼吸，把视线拉过来
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x + padX * 0.55, y + h / 2, Math.max(1.5, screen.px(2)), 0, Math.PI * 2);
+  ctx.fill();
+
+  // 指向敌人的箭头（气泡右缘 → 剪影），没有它这块牌子就只是飘在空中的一段字
+  ctx.beginPath();
+  ctx.moveTo(x + w, y + h / 2 - screen.px(4));
+  ctx.lineTo(anchorX + screen.px(2), y + h / 2);
+  ctx.lineTo(x + w, y + h / 2 + screen.px(4));
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  draw.text(ctx, label, x + padX * 1.05, y + (h - fs * 1.3) / 2, {
+    size: fs,
+    bold: true,
+    color: color,
+    maxWidth: w - padX * 1.4
   });
 }
 
@@ -486,20 +587,38 @@ function onAction(action, state, app) {
   // 敌方反击：受伤数字打在玩家身上
   if (state.player.hp < playerHpBefore) {
     var took = playerHpBefore - state.player.hp;
+    // 蓄势重击兑现：这回合的反馈必须比普通反击更重，否则前三回合的预警等于白给
+    var charged = !!(state.run && state.run.battle && state.run.battle.lastChargedHit);
     if (fx) {
       fx.float(hero.x + px(14), hero.y, "-" + took, {
-        color: "#FF8B7A",
-        size: px(took >= 18 ? 22 : 18),
-        rise: px(40)
+        color: charged ? "#FF6B55" : "#FF8B7A",
+        size: px(charged ? 26 : (took >= 18 ? 22 : 18)),
+        rise: px(charged ? 54 : 40)
       });
-      fx.burst(hero.x, hero.y + px(6), { count: 9, color: "#D8574A", speed: 150, life: 380, size: px(2.6) });
-      fx.shake(px(3), 130);
+      if (charged) {
+        fx.float(hero.x + px(14), hero.y - px(22), "重击", {
+          color: "#F08A6A", size: px(13), rise: px(30)
+        });
+      }
+      fx.burst(hero.x, hero.y + px(6), {
+        count: charged ? 16 : 9,
+        color: "#D8574A",
+        speed: charged ? 210 : 150,
+        life: 380,
+        size: px(2.6)
+      });
+      fx.shake(px(charged ? 8 : 3), charged ? 240 : 130);
+      if (charged) fx.flash("rgba(240,138,106,0.16)", 150);
     }
-    if (app.sound) app.sound("hit", 0.45);
+    if (app.sound) {
+      app.sound("hit", 0.45);
+      if (charged) app.sound("crit", 0.6);
+    }
     // 敌人扑过来 + 玩家被顶退：两个补间同期跑，才像「它撞了你」而不是「你掉血了」
+    // 蓄势重击冲得更远更久，动作本身就说明了「这一下不一样」
     if (app.animator) {
-      app.animator.start("enemyLunge", 300);
-      app.animator.start("heroHurt", 240);
+      app.animator.start("enemyLunge", charged ? 420 : 300);
+      app.animator.start("heroHurt", charged ? 340 : 240);
     }
   }
 

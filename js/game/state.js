@@ -854,6 +854,10 @@ function startBattle(state, kind) {
     turn: 1,
     defenseStance: false,
     enemyCharge: 0,
+    // 下回合预告：由敌方回合末尾写入，玩家回合渲染时读。
+    // 这是「敌人打算干什么」的唯一真相，UI 不许自己猜。
+    telegraph: null,
+    lastChargedHit: false,
     over: false,
     result: null,
     logs: [template.intro || "敌人阻断了前路，战斗开始。"]
@@ -916,6 +920,50 @@ function dealEnemyDamage(run, battle, amount) {
   return { dealt: dealt, absorbed: Math.min(before, amount) - dealt };
 }
 
+/**
+ * 敌方回合末尾：写下「下回合会发生什么」，并落到 battle.telegraph 上。
+ *
+ * 蓄势重击 / 成群连击 / 黏网原本都在同一回合里既宣布又生效，
+ * 玩家读到的只是一行事后日志，没有任何可应对的余地。现在它们提前一回合公布，
+ * 「搞不懂为什么突然挨这么重」变成「看见了，这回合要不要换防御」。
+ * 节奏不变：仍是每 3 回合一次，变的只是公布时机。
+ */
+function writeTelegraph(battle) {
+  if (!battle || battle.over) return null;
+  battle.telegraph = null;
+  if (battle.turn % 3 !== 0) return null;
+
+  var t = null;
+  if (battle.trait === "assassin" || battle.boss) {
+    // 已有层数会一起结算，预告里报的就是真正的加成量，不许写个约数糊弄玩家
+    t = {
+      kind: "charge",
+      label: "蓄势",
+      detail: "下一击 +" + (8 * (battle.enemyCharge + 1)),
+      log: battle.name + " 伏低身子蓄势，下一击会更重。"
+    };
+    battle.enemyCharge += 1;
+  } else if (battle.trait === "swarm") {
+    t = {
+      kind: "swarm",
+      label: "集结",
+      detail: "连击两次",
+      log: battle.name + " 发出尖啸，同伴正在聚集。"
+    };
+  } else if (battle.trait === "weaver") {
+    t = {
+      kind: "weave",
+      label: "吐丝",
+      detail: "缠住你",
+      log: battle.name + " 开始吐丝结网。"
+    };
+  }
+
+  battle.telegraph = t;
+  if (t) pushBattleLog(battle, t.log);
+  return t;
+}
+
 function enemyTurn(state) {
   var run = state.run;
   var battle = run.battle;
@@ -942,14 +990,10 @@ function enemyTurn(state) {
     battle.enemyShield += 8;
     pushBattleLog(battle, battle.name + " 进入强化姿态，获得 8 点护盾。");
   }
-  if ((battle.trait === "assassin" || battle.boss) && battle.turn % 3 === 0) {
-    battle.enemyCharge += 1;
-    pushBattleLog(battle, battle.name + " 正在蓄势，下一击更危险。");
-  }
-  if (battle.trait === "weaver" && battle.turn % 3 === 0) {
-    battle.webbed = true;
-    pushBattleLog(battle, battle.name + " 吐出一层黏网，你的下一击会被拖慢。");
-  }
+  // 取出上一回合末尾写下的预告（取完即清，避免重复生效）。
+  // 预告比效果早整整一个玩家回合——这个回合就是留给玩家的反应窗口。
+  var tele = battle.telegraph || null;
+  battle.telegraph = null;
   if (battle.trait === "enrage" && !battle.enraged && battle.hp < battle.maxHp * 0.5) {
     battle.enraged = true;
     pushBattleLog(battle, battle.name + " 撕开自己的外壳，攻势骤然变猛。");
@@ -966,11 +1010,21 @@ function enemyTurn(state) {
   if (battle.enemyCharge > 0) {
     damage += 8 * battle.enemyCharge;
     battle.enemyCharge = 0;
+    // 给表现层一个「这刀是蓄出来的」信号：重击需要比普通反击更重的震动与音色，
+    // 否则玩家蓄势预警看了三回合，兑现时和普通挨打没区别，预警就白做了
+    battle.lastChargedHit = true;
     pushBattleLog(battle, battle.name + " 释放蓄势重击。");
+  } else {
+    battle.lastChargedHit = false;
   }
-  if (battle.trait === "swarm" && battle.turn % 3 === 0) {
+  if (tele && tele.kind === "swarm") {
     damage += Math.round(damage * 0.55);
     pushBattleLog(battle, battle.name + " 成群扑咬，一回合连击两次。");
+  }
+  // 黏网在「预告后的那一回合」才落下：玩家看到吐丝提示时还有一次机会先防御或抢杀
+  if (tele && tele.kind === "weave") {
+    battle.webbed = true;
+    pushBattleLog(battle, battle.name + " 的黏网罩下来，你的下一击会被拖慢。");
   }
   if (battle.defenseStance) {
     damage = Math.round(damage * 0.6);
@@ -1060,6 +1114,7 @@ function enemyTurn(state) {
       var reviveHp = 20 + run.effects.reviveHealBonus;
       state.player.hp = clamp(reviveHp, 1, state.player.maxHp);
       pushBattleLog(battle, "应急针剂自动触发，你恢复了 " + state.player.hp + " 点生命。");
+      writeTelegraph(battle);
       battle.turn += 1;
       return;
     }
@@ -1068,6 +1123,10 @@ function enemyTurn(state) {
     pushBattleLog(battle, "你倒在了裂隙深处。");
     return;
   }
+
+  // 写下下回合的预告。预告在玩家行动之前就写进状态，UI 才画得出来——
+  // 有预警的动作才有「应对」可言，没有预警的特殊招式只是突然挨打。
+  writeTelegraph(battle);
 
   battle.turn += 1;
   run.stats.turns += 1;

@@ -276,6 +276,22 @@ function materialOf(raw) {
   return materialsApi.DEFAULT;
 }
 
+/**
+ * 战斗预告（下一回合敌人要干什么）。
+ * 只认白名单里的 kind，label/detail 截断长度：存档是可被改的，
+ * 不能让一段任意文本顺着这里流进渲染层。
+ */
+function sanitizeTelegraph(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  if (raw.kind !== "charge" && raw.kind !== "swarm" && raw.kind !== "weave") return null;
+  return {
+    kind: raw.kind,
+    label: typeof raw.label === "string" ? raw.label.slice(0, 6) : "预警",
+    detail: typeof raw.detail === "string" ? raw.detail.slice(0, 20) : "",
+    log: ""
+  };
+}
+
 function sanitizeBattle(raw) {
   if (!raw || typeof raw !== "object") return null;
   var maxHp = toInt(raw.maxHp, 1, 9999, 1);
@@ -319,6 +335,7 @@ function sanitizeBattle(raw) {
     turn: toInt(raw.turn, 1, 999, 1),
     defenseStance: raw.defenseStance === true,
     enemyCharge: toInt(raw.enemyCharge, 0, 9, 0),
+    telegraph: sanitizeTelegraph(raw.telegraph),
     over: raw.over === true,
     result: raw.result === "lose" ? "lose" : null,
     logs: logs.length ? logs : ["战斗继续。"]

@@ -491,8 +491,13 @@ ok("吸血按伤害 40% 回血", bVamp.hp === 84, "敌人 " + bVamp.hp);
 var st4 = freshRun();
 var bSwarm = makeBattle(st4, { trait: "swarm", damageRange: [10, 10], turn: 3 });
 stateApi.battleAction(st4, "precise");
-// 10 + round(10*0.55)=6 → 16 点，玩家 100-16=84
-ok("虫群第 3 回合连击", st4.player.hp === 84, "玩家 " + st4.player.hp);
+// 第 3 回合只写预告，不连击：玩家只吃 10 点基础伤害
+ok("虫群第 3 回合先预告、不连击",
+  !!(bSwarm.telegraph && bSwarm.telegraph.kind === "swarm") && st4.player.hp === 90,
+  "玩家 " + st4.player.hp);
+stateApi.battleAction(st4, "precise");
+// 第 4 回合才真的连击：10 + round(10*0.55)=6 → 16，90-16=74
+ok("预告后一回合虫群连击两次", st4.player.hp === 74, "玩家 " + st4.player.hp);
 
 var st5 = freshRun();
 makeBattle(st5, { trait: "bomber", hp: 1, maxHp: 40 });
@@ -705,7 +710,10 @@ section("新特性行为");
 var sw1 = freshRun();
 var bWeaver = makeBattle(sw1, { trait: "weaver", turn: 3, damageRange: [10, 10] });
 stateApi.enemyTurn(sw1);
-ok("织网在第 3 回合缠住你", bWeaver.webbed === true);
+ok("织网第 3 回合只预告，还没缠上",
+  bWeaver.webbed !== true && !!(bWeaver.telegraph && bWeaver.telegraph.kind === "weave"));
+stateApi.enemyTurn(sw1);
+ok("预告后一回合网才落下", bWeaver.webbed === true);
 
 var sw2 = freshRun();
 var bWebbed = makeBattle(sw2, { trait: "none", webbed: true, hp: 200, maxHp: 200, damageRange: [0, 0] });
@@ -744,6 +752,65 @@ var gMin = Math.min.apply(null, gamblerHits);
 var gMax = Math.max.apply(null, gamblerHits);
 ok("赌徒伤害浮动（50%—170%）", gMin >= 5 && gMax <= 17 && gMax - gMin >= 3,
   "区间 " + gMin + "—" + gMax);
+
+/* ---------------- 战斗预告 ---------------- */
+
+section("战斗预告");
+
+// 蓄势：预告提前一整个玩家回合，当期不当场加重
+var tp1 = freshRun();
+var bTele = makeBattle(tp1, { boss: true, turn: 3, damageRange: [10, 10], hp: 500, maxHp: 500 });
+stateApi.enemyTurn(tp1);
+ok("蓄势在第 3 回合只写预告，不当场加重",
+  !!(bTele.telegraph && bTele.telegraph.kind === "charge") && bTele.enemyCharge === 1 && tp1.player.hp === 90,
+  "玩家 " + tp1.player.hp + " 层 " + bTele.enemyCharge);
+ok("预告里的加成就等于真实加成",
+  bTele.telegraph.detail === "下一击 +8", bTele.telegraph.detail);
+
+// 第 4 回合兑现：10 + 8 = 18（boss 偶数回合补的 8 点护盾不参与这次伤害）
+stateApi.enemyTurn(tp1);
+ok("预告后一回合打出重击 +8", tp1.player.hp === 72, "玩家 " + tp1.player.hp);
+ok("兑现后预告与层数都清空", bTele.telegraph === null && bTele.enemyCharge === 0);
+ok("兑现时给表现层留下重击标记", bTele.lastChargedHit === true);
+
+// 没有这类招式的敌人：同一回合既不该有预告，也不该留标记
+var tp2 = freshRun();
+var bPlain = makeBattle(tp2, { trait: "none", turn: 3, damageRange: [10, 10], hp: 500, maxHp: 500 });
+stateApi.enemyTurn(tp2);
+ok("普通敌人没有预告，也不留重击标记",
+  bPlain.telegraph === null && bPlain.lastChargedHit === false && tp2.player.hp === 90);
+
+// 预告只是提示，不许偷偷改变玩家的输出
+var tp3 = freshRun();
+var bMix = makeBattle(tp3, { boss: true, turn: 3, damageRange: [0, 0], hp: 500, maxHp: 500 });
+stateApi.enemyTurn(tp3);
+var hpAfterTele = bMix.hp;
+ok("有预告的回合玩家照常输出",
+  (function () {
+    stateApi.battleAction(tp3, "precise");
+    return hpAfterTele - bMix.hp === 20;
+  })(), "打掉 " + (hpAfterTele - bMix.hp));
+
+// 存档往返：预告是「下回合要干什么」，读档后凭空消失等于玩家白挨一下
+var tp4 = freshRun();
+makeBattle(tp4, { boss: true, turn: 3, damageRange: [10, 10], hp: 500, maxHp: 500 });
+stateApi.enemyTurn(tp4);
+var savedTele = storage.sanitizeRun(JSON.parse(JSON.stringify(tp4.run)));
+ok("预告能存档往返",
+  !!(savedTele.battle && savedTele.battle.telegraph
+    && savedTele.battle.telegraph.kind === "charge"
+    && savedTele.battle.telegraph.detail === "下一击 +8"),
+  JSON.stringify(savedTele.battle && savedTele.battle.telegraph));
+
+var dirtyTele = JSON.parse(JSON.stringify(tp4.run));
+dirtyTele.battle.telegraph = { kind: "boom", label: "炸", detail: "任意文本" };
+ok("非法预告 kind 被丢弃", storage.sanitizeRun(dirtyTele).battle.telegraph === null);
+
+var longTele = JSON.parse(JSON.stringify(tp4.run));
+longTele.battle.telegraph = { kind: "weave", label: "很长很长的标签名字", detail: "x" };
+var clampedTele = storage.sanitizeRun(longTele).battle.telegraph;
+ok("预告文案按长度截断", clampedTele.label.length <= 6 && clampedTele.detail.length <= 20,
+  clampedTele.label.length + "/" + clampedTele.detail.length);
 
 section("新效果字段行为");
 
@@ -1259,7 +1326,7 @@ ok("到期后 progress 归一", tnA.progress("enemyHit") === 1, String(tnA.progr
 
 // 桩 ctx：只要能记下 translate/arc 的参数就够，渲染正确性靠截图走查
 function stubCtx() {
-  var rec = { translate: [], scale: [], arc: [] };
+  var rec = { translate: [], scale: [], arc: [], texts: [], textPuts: [] };
   var ctx = {
     save: function () {}, restore: function () {}, beginPath: function () {},
     closePath: function () {}, fill: function () {}, stroke: function () {},
@@ -1267,7 +1334,10 @@ function stubCtx() {
     fillRect: function () {}, arcTo: function () {}, clip: function () {},
     quadraticCurveTo: function () {},
     measureText: function (t) { return { width: String(t).length * 6 }; },
-    fillText: function () {},
+    fillText: function (t, x, y) {
+      rec.texts.push(String(t));
+      rec.textPuts.push([String(t), x, y]);
+    },
     createLinearGradient: function () {
       return { addColorStop: function () {} };
     },
@@ -1385,6 +1455,47 @@ for (i2 = 0; i2 < 40; i2 += 1) engineT.__step(16);
 var snapshotAfter = JSON.stringify(liveStateT.run) + JSON.stringify(liveStateT.player);
 ok("播动画不改任何玩法数值", snapshotBefore === snapshotAfter, "状态被改写了");
 ok("动画播完补间自动清空", animT.anyRunning() === false, String(animT.anyRunning()));
+
+/* ---- 预告徽标：状态里有，画面上就一定要有 ---- */
+
+var screenApiT = require("../js/core/screen");
+var uiApiT = require("../js/core/ui");
+var battleModalT = require("../js/game/modals/battle");
+var scrT = screenApiT.createScreen({ screenWidth: 375, screenHeight: 667 });
+
+function renderBattleTexts(state) {
+  var stub = stubCtx();
+  uiApiT.beginFrame(scrT, 0);
+  battleModalT.render(stub.ctx, scrT, state, tweenApiT.createAnimator(), 1200);
+  return stub.rec;
+}
+
+var te1 = freshRun();
+makeBattle(te1, {
+  boss: true, turn: 4, damageRange: [10, 10], hp: 500, maxHp: 500,
+  telegraph: { kind: "charge", label: "蓄势", detail: "下一击 +8", log: "" }
+});
+var rec1 = renderBattleTexts(te1);
+var te1Texts = rec1.texts;
+ok("战斗面板画出预告徽标",
+  te1Texts.some(function (t2) { return t2.indexOf("蓄势") >= 0; }), JSON.stringify(te1Texts));
+ok("预告时防御按钮换成针对性提示",
+  te1Texts.some(function (t3) { return t3 === "挡下这记预告"; }), JSON.stringify(te1Texts));
+
+// 徽标是「贴在敌人头顶」的浮层，越界或压到血条都会变成噪音
+var badgePut = rec1.textPuts.filter(function (p) { return p[0].indexOf("蓄势") >= 0; })[0];
+ok("预告徽标完整落在屏幕内",
+  !!badgePut && badgePut[1] >= 0
+    && badgePut[1] + String(badgePut[0]).length * 6 <= scrT.width
+    && badgePut[2] > 0 && badgePut[2] < scrT.height,
+  JSON.stringify(badgePut));
+
+var te2 = freshRun();
+makeBattle(te2, { trait: "none", turn: 4, damageRange: [10, 10], hp: 500, maxHp: 500 });
+var te2Texts = renderBattleTexts(te2).texts;
+ok("没有预告时不画徽标也不改按钮文案",
+  !te2Texts.some(function (t4) { return t4.indexOf("蓄势") >= 0 || t4 === "挡下这记预告"; }),
+  JSON.stringify(te2Texts));
 
 // 收尾：把战斗结束掉，别把状态留给后面
 dispatch({ id: "battle:giveUp" });
