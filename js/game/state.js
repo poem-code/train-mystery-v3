@@ -23,6 +23,7 @@ var effectsApi = require("./data/effects");
 var affixesApi = require("./data/affixes");
 var achievementsApi = require("./data/achievements");
 var dailyApi = require("./data/daily");
+var themesApi = require("./data/themes");
 
 /* ---------------- 基础工具 ---------------- */
 
@@ -104,6 +105,8 @@ function createRun(seed) {
     eventChain: null,
     /** 每日挑战信息：普通局为 null */
     daily: null,
+    /** 本局车厢主题 id（route 场景可切换，只影响本局） */
+    theme: "rust",
     stats: {
       battlesWon: 0,
       damageDealt: 0,
@@ -112,6 +115,115 @@ function createRun(seed) {
       shopsVisited: 0
     }
   };
+}
+
+/* ---------------- 修正符（每日条件 + 车厢主题） ---------------- */
+
+/**
+ * 把「每日限制」与「车厢主题」合并成一套修正符。
+ *
+ * 两边的字段形状刻意做成一致（daily.combine 的输出），所以合并只写一次，
+ * 消费点也只需要读 run 的合并结果，不用各自判断来源。
+ * 加法字段（delta）相加，乘法字段（mul）相乘。
+ */
+function modsOf(run) {
+  var out = {
+    maxHpDelta: 0,
+    hungerPerNodeDelta: 0,
+    enemyDamageMul: 1,
+    sanityCostMul: 1,
+    enhanceChoiceDelta: 0,
+    shopPriceMul: 1,
+    enemyHpMul: 1,
+    goldMul: 1,
+    startEtherBonus: 0
+  };
+
+  function merge(m) {
+    if (!m) return;
+    out.maxHpDelta += m.maxHpDelta || 0;
+    out.hungerPerNodeDelta += m.hungerPerNodeDelta || 0;
+    out.enemyDamageMul *= m.enemyDamageMul || 1;
+    out.sanityCostMul *= m.sanityCostMul || 1;
+    out.enhanceChoiceDelta += m.enhanceChoiceDelta || 0;
+    out.shopPriceMul *= m.shopPriceMul || 1;
+    out.enemyHpMul *= m.enemyHpMul || 1;
+    out.goldMul *= m.goldMul || 1;
+    out.startEtherBonus += m.startEtherBonus || 0;
+  }
+
+  if (run && run.daily) merge(run.daily.combined);
+  var theme = run && run.theme ? themesApi.getById(run.theme) : null;
+  if (theme) merge(theme.mods);
+  return out;
+}
+
+/**
+ * 主题亲和权重：喜欢的 ×3，明确属于别的主题的 ×0.4，
+ * 没打标签的 ×1（通用）。用权重而不是硬过滤——硬过滤会让池子在
+ * 低层数下变空，最后还是会 fallback，等于白写。
+ */
+function themeWeight(list, themeId) {
+  if (!list || !list.length || !themeId) return 1;
+  return list.indexOf(themeId) >= 0 ? 3 : 0.4;
+}
+
+/** 按权重展开成桶再随机取一个，保持与 rng.pick 一致的确定性 */
+function weightedPick(list, themeId) {
+  var basket = [];
+  var i;
+  var j;
+  for (i = 0; i < list.length; i += 1) {
+    var n = Math.round(themeWeight(list[i].themes, themeId) * 4);
+    for (j = 0; j < n; j += 1) basket.push(list[i]);
+  }
+  if (!basket.length) basket = list;
+  return rng.pick(basket);
+}
+
+/* ---------------- 主题解锁与选择 ---------------- */
+
+function themeUnlocked(state, id) {
+  var list = state.progress.themeUnlocked || [];
+  return list.indexOf(id) >= 0;
+}
+
+function selectedThemeId(state) {
+  var id = state.progress.themeSelected;
+  if (id && themesApi.getById(id) && themeUnlocked(state, id)) return id;
+  return "rust";
+}
+
+function themeSummary(state) {
+  var unlocked = state.progress.themeUnlocked || [];
+  return {
+    selected: selectedThemeId(state),
+    total: themesApi.THEMES.length,
+    unlocked: unlocked.length
+  };
+}
+
+function selectTheme(state, id) {
+  if (!themesApi.getById(id)) return { ok: false, reason: "unknown" };
+  if (!themeUnlocked(state, id)) return { ok: false, reason: "locked" };
+  // 局内不允许改：换主题会立刻改敌人伤害倍率，
+  // 「快死了切霜封」这类操作会把难度设计作废。本局锁定，下一局生效。
+  if (state.run && state.run.active) return { ok: false, reason: "inRun" };
+  state.progress.themeSelected = id;
+  return { ok: true, id: id };
+}
+
+function unlockTheme(state, id) {
+  var theme = themesApi.getById(id);
+  if (!theme) return { ok: false, reason: "unknown" };
+  if (themeUnlocked(state, id)) return { ok: false, reason: "owned" };
+  if (state.run && state.run.active) return { ok: false, reason: "inRun" };
+  if (state.player.ether < theme.unlockCost) return { ok: false, reason: "poor" };
+  state.player.ether -= theme.unlockCost;
+  state.progress.themeUnlocked.push(id);
+  state.progress.themeSelected = id;
+  pushLog(state, "解锁", "「" + theme.name + "」已接通，路线图上可以切换了。");
+  return { ok: true, id: id, cost: theme.unlockCost };
 }
 
 function createDefaultState(now) {
@@ -181,7 +293,10 @@ function createDefaultState(now) {
         clears: 0,
         attempts: 0,
         bestLayer: -1
-      }
+      },
+      /** 已解锁的车厢主题（rust 默认解锁） */
+      themeUnlocked: ["rust"],
+      themeSelected: "rust"
     },
     current: {
       scene: "home",
@@ -549,20 +664,25 @@ function startRun(state, now, mode) {
   var run = createRun(seed);
   run.active = true;
   run.daily = daily;
+  // 每日挑战固定走锈蚀车厢：它承诺「同一天全服同一套条件」，
+  // 主题会改敌人伤害/血量倍率，让不同玩家比不同难度就失去意义了。
+  run.theme = isDaily ? "rust" : selectedThemeId(state);
   run.layers = mapApi.generate(seed);
   state.run = run;
   state.current.scene = "route";
   state.current.modal = null;
   state.current.modalData = null;
 
+  var mods = modsOf(run);
+  var themeDef = themesApi.getById(run.theme);
+
   // 生命上限每局重算：局内强化加的 maxHpBonus 不该带到下一局
-  var maxHpDelta = daily ? daily.combined.maxHpDelta : 0;
-  state.player.maxHp = clamp(config.maxHp + maxHpDelta, 40, 500);
+  state.player.maxHp = clamp(config.maxHp + mods.maxHpDelta, 40, 500);
   state.player.hp = state.player.maxHp;
 
   // 出发整备：精神保底 40 再扣本局成本
   // 保底的意义：单机产品不能让玩家卡在「精神太低无法出发」的死锁里
-  var sanityCost = Math.round(config.sanityPerRun * (daily ? daily.combined.sanityCostMul : 1));
+  var sanityCost = Math.round(config.sanityPerRun * mods.sanityCostMul);
   state.player.sanity = clamp(Math.max(state.player.sanity, 40) - sanityCost, 0, config.maxSanity);
   if (state.player.hunger < 50) state.player.hunger = 50;
 
@@ -573,11 +693,18 @@ function startRun(state, now, mode) {
   if (daily && typeof daily.combined.startEther === "number") {
     state.player.ether = daily.combined.startEther;
   }
+  if (mods.startEtherBonus > 0) {
+    grantCurrency(state, { ether: mods.startEtherBonus });
+  }
 
   if (isDaily) {
     pushLog(state, "每日挑战", dailyLogText(daily));
   } else {
-    pushLog(state, "出发", "列车穿过裂隙，新的路线图已经展开。");
+    pushLog(state, "出发", "列车穿过裂隙，" +
+      (themeDef && themeDef.id !== "rust" ? "驶入「" + themeDef.name + "」。" : "新的路线图已经展开。"));
+  }
+  if (themeDef && themeDef.id !== "rust") {
+    pushLog(state, "车厢主题", themeDef.rules.join(" · "));
   }
   return state.run;
 }
@@ -616,8 +743,7 @@ function travelTo(state, nodeId) {
 
   // 移动成本
   run.nodesVisited += 1;
-  var dailyHunger = run.daily ? run.daily.combined.hungerPerNodeDelta : 0;
-  var hungerCost = Math.max(1, config.hungerPerNode + run.effects.hungerCostDelta + dailyHunger);
+  var hungerCost = Math.max(1, config.hungerPerNode + run.effects.hungerCostDelta + modsOf(run).hungerPerNodeDelta);
   state.player.hunger = clamp(state.player.hunger - hungerCost, 0, config.maxHunger);
 
   if (run.effects.foodRecoveryEveryTwo > 0 && run.nodesVisited % 2 === 0) {
@@ -665,29 +791,32 @@ function enterNode(state, node) {
 
 /* ---------------- 战斗 ---------------- */
 
-function pickEnemy(kind, layer) {
+function pickEnemy(kind, layer, themeId) {
   if (kind === "boss") {
     // Boss 也从池里随机：三场通关不重样，是重复游玩的最低成本手段
     var bosses = enemiesApi.byKind("boss");
-    return rng.pick(bosses.length ? bosses : [enemiesApi.getById("riftWarden")]);
+    return weightedPick(bosses.length ? bosses : [enemiesApi.getById("riftWarden")], themeId);
   }
   var pool = enemiesApi.poolFor(kind === "elite" ? "elite" : "normal", layer);
   if (!pool.length) pool = enemiesApi.byKind(kind === "elite" ? "elite" : "normal");
-  return rng.pick(pool);
+  return weightedPick(pool, themeId);
 }
 
 function startBattle(state, kind) {
   var run = state.run;
   var layer = run.layer >= 0 ? run.layer : 0;
-  var template = pickEnemy(kind, layer);
+  var template = pickEnemy(kind, layer, run.theme);
+  var mods = modsOf(run);
   var hpRange = template.kind === "normal" ? template.hpRange : template.hp;
   var hp = rng.int(hpRange[0], hpRange[1]);
 
   // 精英 = 基础敌人 + 1 个词缀；Boss 本身已有一套独立行为，不再叠词缀
   var affix = kind === "elite" ? affixesApi.rollFor(rng.pick) : null;
   if (affix) hp = Math.max(1, Math.round(hp * config.eliteHpMul));
+  // 车厢主题可以整体调血量（霜封更硬、焚炉更狠）
+  if (mods.enemyHpMul !== 1) hp = Math.max(1, Math.round(hp * mods.enemyHpMul));
 
-  var sanityCost = Math.round(config.sanityPerBattle * (run.daily ? run.daily.combined.sanityCostMul : 1));
+  var sanityCost = Math.round(config.sanityPerBattle * mods.sanityCostMul);
   state.player.sanity = clamp(state.player.sanity - sanityCost, 0, config.maxSanity);
   markEnemySeen(state, template.id);
 
@@ -788,7 +917,7 @@ function enemyTurn(state) {
   if (!battle || battle.over) return;
 
   var affix = battle.affix ? affixesApi.getById(battle.affix) : null;
-  var dailyMul = run.daily ? run.daily.combined.enemyDamageMul : 1;
+  var dailyMul = modsOf(run).enemyDamageMul;
 
   if (affix && affix.shieldEvery && battle.turn % affix.shieldEvery === 0) {
     battle.enemyShield += affix.shieldAmount;
@@ -1144,6 +1273,9 @@ function winBattle(state) {
   var gold = battle.reward.gold + run.effects.battleBonusGold;
   // 贪婪词缀：赏金翻倍（代价是攻击更狠，在 enemyTurn 里已生效）
   if (affixDef && affixDef.goldMul) gold = Math.round(gold * affixDef.goldMul);
+  // 车厢主题（焚炉）整体加金币
+  var goldMul = modsOf(run).goldMul;
+  if (goldMul !== 1) gold = Math.round(gold * goldMul);
   grantCurrency(state, { ether: battle.reward.ether, gold: gold });
   run.stats.battlesWon += 1;
   pushLog(state, "战斗胜利", "击败 " + battle.name + "，获得 " + battle.reward.ether + " 以太。");
@@ -1182,7 +1314,7 @@ function winBattle(state) {
 function openEnhance(state, count) {
   var run = state.run;
   var n = count || 3;
-  if (run && run.daily) n += run.daily.combined.enhanceChoiceDelta;
+  if (run) n += modsOf(run).enhanceChoiceDelta;
   var picks = enhApi.draw(rng.shuffle, clamp(n, 2, 5));
   state.run.pendingEnhancements = picks.map(function (item) {
     return { id: item.id, name: item.name, desc: item.desc, tag: item.tag };
@@ -1268,7 +1400,7 @@ function openEvent(state) {
     run.eventChain = { id: chainPick.chain, name: chainPick.chainName, stage: chainPick.stage, total: chainPick.total };
     pushLog(state, "线索", "「" + chainPick.chainName + "」第 " + chainPick.stage + " / " + chainPick.total + " 段。");
   } else {
-    event = eventsApi.roll(rng.pick, run.layer, run.recentEvents);
+    event = eventsApi.roll(rng.pick, run.layer, run.recentEvents, run.theme);
     run.eventChain = null;
   }
   run.eventId = event.id;
@@ -1305,8 +1437,9 @@ function canChooseEventOption(state, choice) {
 function applyEventGain(state, gain) {
   if (!gain) return;
   var boost = 1 + state.run.effects.eventRewardBoost;
+  var goldMul = modsOf(state.run).goldMul;
   if (gain.ether) grantCurrency(state, { ether: Math.round(gain.ether * boost) });
-  if (gain.gold) grantCurrency(state, { gold: gain.gold });
+  if (gain.gold) grantCurrency(state, { gold: Math.round(gain.gold * goldMul) });
   if (gain.hp) state.player.hp = clamp(state.player.hp + gain.hp, 1, state.player.maxHp);
   if (gain.sanity) state.player.sanity = clamp(state.player.sanity + gain.sanity, 0, config.maxSanity);
   if (gain.hunger) state.player.hunger = clamp(state.player.hunger + gain.hunger, 0, config.maxHunger);
@@ -1413,7 +1546,8 @@ function shopPrice(state, item) {
   if (typeof run.effects.firstShopDiscount === "number") {
     price = Math.ceil(price * run.effects.firstShopDiscount);
   }
-  if (run.daily) price = Math.ceil(price * run.daily.combined.shopPriceMul);
+  // 每日条件与主题的价格系数已在 modsOf 里相乘，这里只乘一次
+  price = Math.ceil(price * modsOf(run).shopPriceMul);
   return price;
 }
 
@@ -1591,6 +1725,13 @@ module.exports = {
   dailyInfo: dailyInfo,
   dailyUnlocked: dailyUnlocked,
   startDaily: startDaily,
+  // 车厢主题
+  modsOf: modsOf,
+  themeSummary: themeSummary,
+  themeUnlocked: themeUnlocked,
+  selectedThemeId: selectedThemeId,
+  selectTheme: selectTheme,
+  unlockTheme: unlockTheme,
   // 广告
   canWatchAd: canWatchAd,
   pushLog: pushLog,

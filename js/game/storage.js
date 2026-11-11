@@ -9,13 +9,14 @@
 
 var config = require("./config");
 var stateApi = require("./state");
+var themesApi = require("./data/themes");
 var platform = require("../platform/platform");
 
 var SCENES = { home: 1, train: 1, route: 1 };
 var MODALS = {
   battle: 1, event: 1, eventResult: 1, enhance: 1, shop: 1,
   camp: 1, chest: 1, summary: 1, info: 1, settings: 1, trainUpgrade: 1, guide: 1,
-  codex: 1, daily: 1
+  codex: 1, daily: 1, themes: 1
 };
 
 function toInt(value, min, max, fallback) {
@@ -133,6 +134,25 @@ function sanitizeEnemyCodex(raw, limit) {
   return out;
 }
 
+/** 主题白名单：未知 id 一律丢弃（防改档写入不存在的主题导致渲染取不到配色） */
+function sanitizeThemeList(raw) {
+  var known = themesApi.ids();
+  var out = ["rust"];
+  if (!Array.isArray(raw)) return out;
+  raw.forEach(function (id) {
+    if (typeof id !== "string") return;
+    if (known.indexOf(id) < 0) return;
+    if (out.indexOf(id) >= 0) return;
+    out.push(id);
+  });
+  return out;
+}
+
+function sanitizeThemeSelected(raw) {
+  if (typeof raw !== "string") return "rust";
+  return themesApi.getById(raw) ? raw : "rust";
+}
+
 function clampProgress(raw) {
   var p = raw || {};
   var up = p.trainUpgrades || {};
@@ -180,7 +200,10 @@ function clampProgress(raw) {
       clears: toInt(daily.clears, 0, 999999, 0),
       attempts: toInt(daily.attempts, 0, 999999, 0),
       bestLayer: toInt(daily.bestLayer, -1, 99, -1)
-    }
+    },
+    // 主题：只接受 themes.js 里存在的 id，rust 永远解锁（防止改档锁死自己）
+    themeUnlocked: sanitizeThemeList(p.themeUnlocked),
+    themeSelected: sanitizeThemeSelected(p.themeSelected)
   };
 }
 
@@ -370,6 +393,7 @@ function sanitizeRun(raw) {
       ? raw.recentEvents.filter(function (id) { return typeof id === "string"; }).slice(0, 3)
       : [],
     chains: sanitizeChains(raw.chains),
+    theme: themesApi.getById(raw.theme) ? raw.theme : "rust",
     eventChain: raw.eventChain && typeof raw.eventChain === "object"
       ? {
         id: typeof raw.eventChain.id === "string" ? raw.eventChain.id.slice(0, 24) : null,

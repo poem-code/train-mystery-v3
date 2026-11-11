@@ -143,9 +143,37 @@ load()                合并默认值，缺失字段补齐
 
 - v2→v3：新增 `progress.codex` / `progress.achievements` / `progress.daily`，老档补空对象
 - v3→v4：`settings.soundOn` 拆成 `sfxOn` + `bgmOn`，老档把 `soundOn` 映射到两者
-- 每一步迁移都写测试（`v3 老档迁移后补齐新字段` / `老档音效开关映射到 sfxOn`）
+- v4→v5：新增 `progress.themeUnlocked` / `progress.themeSelected` / `run.theme`，老档补 `rust`
+- 每一步迁移都写测试（`v3 老档迁移后补齐新字段` / `老档音效开关映射到 sfxOn` / `旧档无主题字段时补默认值`）
 
 **迁移函数必须幂等**：同一个档跑两次迁移结果一致。否则「读档-存档-读档」会滚雪球。
+
+### 修正符合并：`modsOf(run)`
+
+「每日限制条件」与「车厢主题」本质是同一类东西：一组对数值的修正。所以两边共用一套字段形状，
+由 `state.modsOf(run)` 合并成一个对象给消费点用：
+
+```js
+// daily.combine() 的输出          theme.mods
+{ enemyDamageMul: 1.2,     +      { enemyDamageMul: 0.85, hungerPerNodeDelta: 1 }
+  sanityCostMul: 2 }               }
+        ↓
+modsOf(run) = { enemyDamageMul: 1.02, sanityCostMul: 2, hungerPerNodeDelta: 1, ... }
+```
+
+规则：**加法字段相加（delta），乘法字段相乘（mul）**。
+
+为什么不让消费点各自判断来源：上一个版本里 `run.daily ? run.daily.combined.x : 1` 散在
+6 个地方（开局血量、精神消耗、每层饱食、敌人伤害、强化候选数、商店价格），
+加主题就得改 6 处，漏一处就是「主题只在部分系统里生效」的隐性 bug。
+
+**新增任何修正来源时，只改 `modsOf` 一个函数**，消费点不用动。
+
+### 内容权重而不是硬过滤
+
+主题影响「遇到谁」的方式是权重：`themes` 字段命中的 ×3，明确属于别的主题的 ×0.4，
+没打标签的 ×1。**不做硬过滤**——硬过滤会让低层数下池子变空，最后仍要 fallback，
+等于白写一层逻辑，还会让「霜封车厢只有两种怪」的体感更差。
 
 ---
 

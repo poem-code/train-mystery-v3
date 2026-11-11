@@ -19,6 +19,7 @@ module.exports = {
     settings: require("./modals/settings"),
     trainUpgrade: require("./modals/trainUpgrade"),
     codex: require("./modals/codex"),
-    daily: require("./modals/daily")
+    daily: require("./modals/daily"),
+    themes: require("./modals/themes")
   }
 };

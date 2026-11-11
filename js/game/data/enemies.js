@@ -46,6 +46,8 @@ var ENEMIES = [
   },
   {
     id: "shallowWisp",
+
+    themes: ["frost"],
     name: "浅域游魂",
     kind: "normal",
     trait: "wisp",
@@ -85,6 +87,8 @@ var ENEMIES = [
   },
   {
     id: "corpseLamp",
+
+    themes: ["ember"],
     name: "尸灯",
     kind: "normal",
     trait: "vampire",
@@ -111,6 +115,8 @@ var ENEMIES = [
   },
   {
     id: "glassEcho",
+
+    themes: ["frost"],
     name: "玻璃回响",
     kind: "normal",
     trait: "mirror",
@@ -124,6 +130,8 @@ var ENEMIES = [
   },
   {
     id: "cinderHound",
+
+    themes: ["ember"],
     name: "灰烬猎犬",
     kind: "normal",
     trait: "bomber",
@@ -150,6 +158,8 @@ var ENEMIES = [
   },
   {
     id: "ironMoth",
+
+    themes: ["frost"],
     name: "铁翼蛾",
     kind: "normal",
     trait: "armored",
@@ -163,6 +173,8 @@ var ENEMIES = [
   },
   {
     id: "wailingBride",
+
+    themes: ["frost"],
     name: "哀鸣新娘",
     kind: "normal",
     trait: "vampire",
@@ -217,6 +229,8 @@ var ENEMIES = [
   },
   {
     id: "twinEcho",
+
+    themes: ["frost"],
     name: "双生回响",
     kind: "elite",
     trait: "mirror",
@@ -258,6 +272,8 @@ var ENEMIES = [
   },
   {
     id: "rustStoker",
+
+    themes: ["ember"],
     name: "锈血司炉",
     kind: "boss",
     trait: "armored",
@@ -285,6 +301,8 @@ var ENEMIES = [
   /* ---------------- 普通 · 第二批 ---------------- */
   {
     id: "threadWeaver",
+
+    themes: ["frost"],
     name: "织网蛛",
     kind: "normal",
     trait: "weaver",
@@ -311,6 +329,8 @@ var ENEMIES = [
   },
   {
     id: "frenziedMiner",
+
+    themes: ["ember"],
     name: "狂乱矿工",
     kind: "normal",
     trait: "enrage",
@@ -337,6 +357,8 @@ var ENEMIES = [
   },
   {
     id: "ashPilgrim",
+
+    themes: ["ember"],
     name: "灰烬朝圣者",
     kind: "normal",
     trait: "wisp",
@@ -378,6 +400,8 @@ var ENEMIES = [
   /* ---------------- 精英 · 第二批 ---------------- */
   {
     id: "weaverMatron",
+
+    themes: ["frost"],
     name: "织巢母体",
     kind: "elite",
     trait: "weaver",
@@ -391,6 +415,8 @@ var ENEMIES = [
   },
   {
     id: "hollowKing",
+
+    themes: ["ember"],
     name: "空洞之王",
     kind: "elite",
     trait: "enrage",

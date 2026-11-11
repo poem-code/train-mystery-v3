@@ -9,6 +9,8 @@ var stateApi = require("../js/game/state");
 var mapApi = require("../js/game/map");
 
 var N = parseInt(process.argv[2], 10) || 300;
+// 第二个参数指定车厢主题：node tools/sim-balance.js 300 frost
+var THEME = process.argv[3] || "rust";
 
 /** 模拟一个「会看血量的普通玩家」 */
 function playRun(state, now) {
@@ -117,6 +119,10 @@ for (i = 0; i < N; i += 1) {
   var state = stateApi.createDefaultState(Date.now());
   // 每局之间清空局外成长，模拟「首通体验」
   state.player.potion = 2;
+  if (THEME !== "rust") {
+    state.progress.themeUnlocked.push(THEME);
+    state.progress.themeSelected = THEME;
+  }
   var result = playRun(state, Date.now() + i * 1000);
   total.runs += 1;
   if (result.cleared) total.cleared += 1;
@@ -128,6 +134,7 @@ for (i = 0; i < N; i += 1) {
   }
 }
 
+console.log("车厢主题：" + THEME);
 console.log("模拟局数：" + total.runs);
 console.log("通关率：" + ((total.cleared / total.runs) * 100).toFixed(1) + "%");
 console.log("平均到达层：" + (total.layerSum / total.runs).toFixed(2) + " / 9");

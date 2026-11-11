@@ -7,7 +7,7 @@
 
 module.exports = {
   /** 存档结构版本：改动 state 结构必须 +1，并在 storage 里补迁移 */
-  schemaVersion: 4,
+  schemaVersion: 5,
   storageKey: "train-mystery-v3-save",
   legacyKeys: ["train-mystery-douyin-save-v2", "train-mystery-roguelike-save-v4"],
 

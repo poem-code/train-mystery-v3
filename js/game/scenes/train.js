@@ -10,12 +10,15 @@ var common = require("../ui-common");
 var stateApi = require("../state");
 var config = require("../config");
 var text = require("../data/text");
+var themesApi = require("../data/themes");
 
 var P = draw.PALETTE;
 
 function render(ctx, screen, state, animator) {
   var s = screen.s;
-  draw.backdrop(ctx, screen);
+  // 主城按「下一局要走的车厢」上色：选完主题不用出发就能看到变化
+  var tint = themesApi.getById(stateApi.selectedThemeId(state)) || themesApi.getById("rust");
+  draw.backdrop(ctx, screen, null, { glow: tint.glow, beam: tint.beam });
 
   common.header(ctx, screen, text.train.title, "第 " + (state.progress.runsStarted + 1) + " 次出发准备", {
     id: "train:home",
@@ -61,13 +64,14 @@ function render(ctx, screen, state, animator) {
 
   y = heroRect.y + heroRect.h + screen.px(14);
 
-  // 主按钮：出发 / 继续
+  // 主按钮：出发 / 继续。主题名放进副标题，让「这局走哪节车厢」一眼可见。
+  var themeNow = themesApi.getById(stateApi.selectedThemeId(state));
   var primary = { x: content.x, y: y, w: content.w, h: screen.px(56) };
   ui.button(ctx, {
     id: hasRun ? "train:continue" : "train:depart",
     rect: primary,
     label: hasRun ? "继续探索" : text.train.depart,
-    sub: hasRun ? "回到路线图" : "精神 -" + config.sanityPerRun,
+    sub: hasRun ? "回到路线图" : "精神 -" + config.sanityPerRun + " · " + (themeNow ? themeNow.name : "车厢"),
     style: "primary",
     size: screen.fz(18)
   });
@@ -169,13 +173,10 @@ function onAction(action, state, app) {
     return true;
   }
   if (id === "train:depart") {
-    // 不做精神硬门槛：startRun 里会把精神保底到 40 再扣本局成本，
-    // 加硬门槛会让玩家卡在「走不了、也恢复不了」的死锁里。
-    if (app.sound) app.sound("step", 0.85);
-    stateApi.startRun(state, app.now());
-    app.commit();
-    app.go("route");
-    app.toast("路线已展开，选择你的下一站");
+    // 先选车厢再出发：主题是「这一局接受什么规矩」的决定，
+    // 放在开局前一步，比塞进功能区更容易被看见。
+    // 精神门槛仍然不设：startRun 里会把精神保底到 40 再扣本局成本。
+    app.openModal("themes", { from: "train" });
     return true;
   }
   if (id === "train:upgrade") {

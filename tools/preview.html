@@ -108,11 +108,24 @@
   var modal = q.get("modal");
   var demo = q.get("demo");
 
+  // ?theme=frost —— 指定车厢：先全解锁再选中（对所有入口都生效，方便逐张截图）
+  var wantTheme = q.get("theme");
+  if (wantTheme) {
+    var themesApi = load("js/game/data/themes.js");
+    var stateApiTheme = load("js/game/state.js");
+    state.progress.themeUnlocked = themesApi.ids();
+    state.player.ether = 400;
+    stateApiTheme.selectTheme(state, wantTheme);
+  }
+
   if (demo === "1" || scene === "route" || modal) {
     state.player.ether = 128;
     state.player.gold = 6;
+
     go("home:enter");
     go("train:depart");
+    // 出发前会先弹主题选择，预览里直接确认
+    if (state.current.modal === "themes") go("theme:start");
     // 往前走两层，让路线图有进度
     var map = load("js/game/map.js");
     var rounds = parseInt(q.get("advance"), 10);
@@ -266,6 +279,15 @@
     state.progress.daily.clears = 2;
     state.current.scene = "train";
     state.current.modal = "daily";
+    changed = true;
+  } else if (modal === "themes") {
+    // 主题选择：默认展示「全部解锁、已选中 frost」的样子
+    var thApi = load("js/game/data/themes.js");
+    state.progress.themeUnlocked = thApi.ids();
+    state.progress.themeSelected = q.get("theme") || "frost";
+    state.run.active = false;
+    state.current.scene = "train";
+    state.current.modal = "themes";
     changed = true;
   } else if (modal === "trainUpgrade") {
     state.current.scene = "train";

@@ -926,6 +926,10 @@ function backdrop(ctx, screen, tone, opts) {
   var o = opts || {};
   var t = o.tone || tone;
   var offset = o.offset || 0;
+  // 车厢主题只管两处色：顶部光晕与车窗光带。其余用统一调色板，
+  // 免得主题一多就出现「整个界面跟着变色」的失控感。
+  var glow = o.glow || "rgba(79,192,176,0.16)";
+  var beamColor = o.beam || "rgba(224,177,92,0.10)";
   var w = screen.width;
   var h = screen.height;
 
@@ -935,14 +939,14 @@ function backdrop(ctx, screen, tone, opts) {
   // 远景：顶部光晕
   if (typeof ctx.createLinearGradient === "function") {
     var g = ctx.createLinearGradient(0, 0, 0, h * 0.55);
-    g.addColorStop(0, "rgba(79,192,176,0.16)");
+    g.addColorStop(0, glow);
     g.addColorStop(1, "rgba(79,192,176,0)");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h * 0.55);
 
     // 中景：斜向光带（车窗透进来的光），随 offset 缓慢移动
     var beam = ctx.createLinearGradient(0, h * 0.12, w, h * 0.62);
-    beam.addColorStop(0, "rgba(224,177,92,0.10)");
+    beam.addColorStop(0, beamColor);
     beam.addColorStop(0.45, "rgba(224,177,92,0.02)");
     beam.addColorStop(1, "rgba(224,177,92,0)");
     ctx.fillStyle = beam;

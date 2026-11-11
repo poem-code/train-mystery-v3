@@ -156,6 +156,8 @@ var EVENTS = [
   },
   {
     id: "oldDevice",
+
+    themes: ["ember"],
     title: "旧世界装置",
     text: "一台还在嗡鸣的旧世界装置，面板上的指示灯忽明忽暗。",
     weight: 9,
@@ -181,6 +183,8 @@ var EVENTS = [
   },
   {
     id: "silentConductor",
+
+    themes: ["frost"],
     title: "沉默乘务员",
     text: "一位旧制服乘务员站在过道尽头，向你摊开手掌，什么也不说。",
     weight: 7,
@@ -203,6 +207,8 @@ var EVENTS = [
   },
   {
     id: "frozenDiner",
+
+    themes: ["frost"],
     title: "结霜餐车",
     text: "餐车的窗上结着厚厚的白霜，炉子还温着。热气里有种久违的味道。",
     weight: 11,
@@ -322,6 +328,8 @@ var EVENTS = [
   },
   {
     id: "bloodCar",
+
+    themes: ["ember"],
     title: "采血车厢",
     text: "一节挂着红十字的旧车厢，椅子上还留着束带。墙上的告示写着「有偿」。",
     weight: 8,
@@ -346,6 +354,8 @@ var EVENTS = [
   },
   {
     id: "mirrorPlatform",
+
+    themes: ["frost"],
     title: "镜面站台",
     text: "站台地面像镜子一样，倒影里的你比你慢了半步，并且一直在看你。",
     weight: 8,
@@ -438,6 +448,8 @@ var EVENTS = [
   },
   {
     id: "derailWreck",
+
+    themes: ["ember"],
     title: "脱轨残骸",
     text: "一节脱轨的车厢斜插在裂隙边缘，里面可能还有东西，也可能随时塌下去。",
     weight: 8,
@@ -569,6 +581,8 @@ var EVENTS = [
   },
   {
     id: "frozenTank",
+
+    themes: ["frost"],
     title: "结冰的水箱",
     text: "水箱表面结着厚冰，冰层下有东西在缓慢移动，看不出是什么。",
     weight: 10,
@@ -662,6 +676,8 @@ var EVENTS = [
   },
   {
     id: "pendulum",
+
+    themes: ["frost"],
     title: "停在半空的钟摆",
     text: "车厢顶上的钟摆悬在半空，既没有下落，也没有回摆。",
     weight: 9,
@@ -714,6 +730,8 @@ var EVENTS = [
   },
   {
     id: "leakingValve",
+
+    themes: ["ember"],
     title: "漏气的阀门",
     text: "一根管子嘶嘶漏着白气，阀门上缠着别人留下的布条。",
     weight: 10,
@@ -1042,8 +1060,14 @@ function getById(id) {
   return null;
 }
 
-/** 按层数与权重抽取（排除最近出现过的 id；链事件不进随机池） */
-function roll(pickRandom, layer, recentIds) {
+/**
+ * 按层数与权重抽取（排除最近出现过的 id；链事件不进随机池）
+ *
+ * themeId 只调权重、不排除任何人：打了别的主题标签的事件降到 0.4 倍，
+ * 通用事件（没有 themes 字段）保持 1 倍。硬过滤会让主题专属事件被排除后
+ * 池子变空、最后还是得 fallback，不如一开始就用权重。
+ */
+function roll(pickRandom, layer, recentIds, themeId) {
   var recent = recentIds || [];
   var pool = [];
   EVENTS.forEach(function (event) {
@@ -1051,6 +1075,9 @@ function roll(pickRandom, layer, recentIds) {
     if (layer < (event.minLayer || 1)) return;
     if (recent.indexOf(event.id) >= 0) return;
     var weight = event.weight || 10;
+    if (themeId && event.themes && event.themes.length) {
+      weight = Math.round(weight * (event.themes.indexOf(themeId) >= 0 ? 3 : 0.4));
+    }
     var i;
     for (i = 0; i < weight; i += 1) pool.push(event);
   });

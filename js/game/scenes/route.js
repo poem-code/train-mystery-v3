@@ -11,6 +11,7 @@ var common = require("../ui-common");
 var stateApi = require("../state");
 var mapApi = require("../map");
 var nodesData = require("../data/nodes");
+var themesApi = require("../data/themes");
 
 var P = draw.PALETTE;
 
@@ -27,12 +28,14 @@ function laneX(mapRect, lane, count) {
 function render(ctx, screen, state, animator) {
   var s = screen.s;
   var run = state.run;
-  draw.backdrop(ctx, screen);
+  var theme = themesApi.getById(run.theme) || themesApi.getById("rust");
+  draw.backdrop(ctx, screen, null, { glow: theme.glow, beam: theme.beam });
 
-  common.header(ctx, screen, "路线图", "第 " + (run.layer + 1) + " / " + run.layers.length + " 层 · 已走 " + run.nodesVisited + " 个节点", {
-    id: "route:collection",
-    label: "构筑"
-  });
+  common.header(ctx, screen, "路线图",
+    theme.name + " · 第 " + (run.layer + 1) + " / " + run.layers.length + " 层 · 已走 " + run.nodesVisited + " 个节点", {
+      id: "route:collection",
+      label: "构筑"
+    });
 
   var content = screen.content();
   var resRect = { x: content.x, y: content.y, w: content.w, h: screen.px(42) };
@@ -48,6 +51,28 @@ function render(ctx, screen, state, animator) {
   var available = mapApi.available(run.layers, run.currentNodeId);
   var availIds = {};
   available.forEach(function (node) { availIds[node.id] = true; });
+
+  // 主题小胶囊：局中只做查询（点开看这节车厢的规矩），不能改
+  var chip = {
+    x: mapRect.x + mapRect.w - screen.px(58),
+    y: mapRect.y - screen.px(4),
+    w: screen.px(58),
+    h: screen.px(20)
+  };
+  ctx.save();
+  draw.rr(ctx, chip.x, chip.y, chip.w, chip.h, screen.px(10));
+  ctx.fillStyle = "rgba(20,35,46,0.85)";
+  ctx.fill();
+  ctx.strokeStyle = theme.accent;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.restore();
+  draw.text(ctx, theme.name, chip.x + chip.w / 2, chip.y + screen.px(6), {
+    size: screen.fz(9),
+    align: "center",
+    color: theme.accent
+  });
+  ui.pushHit({ id: "route:theme", rect: chip, kind: "chip" });
 
   // 连线（先画，压在节点下面）
   ctx.save();
@@ -174,6 +199,10 @@ function onAction(action, state, app) {
 
   if (id === "route:collection") {
     app.openInfo("collection");
+    return true;
+  }
+  if (id === "route:theme") {
+    app.openModal("themes", { readOnly: true });
     return true;
   }
   if (id === "route:abandon") {

@@ -12,6 +12,21 @@
 
 /* global global */
 
+// Node 里没有 localStorage，platform.js 会走「无存储」分支、load() 恒为 null。
+// 装一个内存桩，存档相关的断言才有意义（也让自动存档真的跑起来）。
+if (typeof global.localStorage === "undefined") {
+  (function () {
+    var store = {};
+    global.localStorage = {
+      getItem: function (key) {
+        return Object.prototype.hasOwnProperty.call(store, key) ? store[key] : null;
+      },
+      setItem: function (key, value) { store[key] = String(value); },
+      removeItem: function (key) { delete store[key]; }
+    };
+  })();
+}
+
 global.__TM_TEST__ = {};
 
 var PASS = 0;
@@ -164,6 +179,16 @@ function playStep() {
 
   if (modal === "summary") {
     dispatch({ id: "summary:close" });
+    return;
+  }
+
+  if (modal === "themes") {
+    // 出发前固定会先弹主题选择，自动游玩直接确认当前选中项
+    if (s.run && s.run.active) {
+      dispatch({ id: "theme:close" });
+    } else {
+      dispatch({ id: "theme:start" });
+    }
     return;
   }
 
@@ -768,6 +793,157 @@ ok("chains 存档白名单化并夹取",
   stChainLoaded.run.chains.childDrawing === 0 &&
   stChainLoaded.run.chains.evilChain === undefined,
   JSON.stringify(stChainLoaded.run.chains));
+
+section("车厢主题");
+
+var themesApiT = require("../js/game/data/themes");
+
+ok("主题表有 3 套", themesApiT.THEMES.length === 3, "实际 " + themesApiT.THEMES.length);
+ok("每套主题都有名字与规则文案", themesApiT.THEMES.every(function (t) {
+  return t.name && t.rules && t.rules.length > 0 && t.glow && t.beam;
+}));
+ok("锈蚀车厢无修正", Object.keys(themesApiT.getById("rust").mods).length === 0);
+ok("其余主题都有修正", themesApiT.THEMES.filter(function (t) {
+  return t.id !== "rust" && Object.keys(t.mods).length > 0;
+}).length === 2);
+
+var stTh = stateApi.createDefaultState(Date.now());
+ok("默认只解锁锈蚀车厢", stTh.progress.themeUnlocked.length === 1 && stTh.progress.themeUnlocked[0] === "rust",
+  JSON.stringify(stTh.progress.themeUnlocked));
+ok("默认选中锈蚀车厢", stateApi.selectedThemeId(stTh) === "rust");
+
+ok("未解锁的主题选不了", stateApi.selectTheme(stTh, "frost").reason === "locked");
+stTh.player.ether = 10;
+ok("以太不足时解锁失败", stateApi.unlockTheme(stTh, "frost").reason === "poor");
+
+stTh.player.ether = 200;
+var unlockRes = stateApi.unlockTheme(stTh, "frost");
+ok("解锁成功并按价扣以太", unlockRes.ok && stTh.player.ether === 50,
+  "返回 " + JSON.stringify(unlockRes) + " / 余 " + stTh.player.ether);
+ok("解锁后自动选中", stateApi.selectedThemeId(stTh) === "frost");
+
+stateApi.startRun(stTh, Date.now());
+ok("开局后主题锁定", stateApi.selectTheme(stTh, "rust").reason === "inRun");
+ok("本局用的是霜封车厢", stTh.run.theme === "frost", stTh.run.theme);
+ok("霜封的开局以太奖励生效", stTh.player.ether === 70, "余 " + stTh.player.ether);
+ok("开局日志记录主题与规则",
+  stTh.logs.some(function (l) { return l.text.indexOf("霜封车厢") >= 0; }) &&
+  stTh.logs.some(function (l) { return l.text.indexOf("敌人伤害 -15%") >= 0; }),
+  stTh.logs.slice(0, 3).map(function (l) { return l.text; }).join(" | "));
+
+// 每日条件与主题倍率必须相乘，而不是后者覆盖前者
+var stMx = stateApi.createDefaultState(Date.now());
+stMx.run.theme = "frost";
+stMx.run.daily = {
+  combined: {
+    maxHpDelta: -20, hungerPerNodeDelta: 0, enemyDamageMul: 1.1,
+    sanityCostMul: 1.5, enhanceChoiceDelta: -1, shopPriceMul: 1.2
+  }
+};
+var merged = stateApi.modsOf(stMx.run);
+ok("乘法字段相乘", Math.abs(merged.enemyDamageMul - 1.1 * 0.85) < 1e-9,
+  "实际 " + merged.enemyDamageMul);
+ok("加法字段相加", merged.maxHpDelta === -20 && merged.hungerPerNodeDelta === 1,
+  JSON.stringify(merged));
+
+// 敌人生命倍率：把敌人池换成一个固定血量的木桩，结果才能精确断言
+var enemiesApiT = require("../js/game/data/enemies");
+var realPoolFor = enemiesApiT.poolFor;
+var dummyEnemy = {
+  id: "testDummy", name: "木桩", kind: "normal", trait: "none", figure: "normal",
+  color: "#fff", hpRange: [20, 20], damageRange: [0, 0],
+  reward: { ether: 0, gold: 0 }, intro: ""
+};
+enemiesApiT.poolFor = function () { return [dummyEnemy]; };
+
+function hpOf(themeId) {
+  var st = stateApi.createDefaultState(Date.now());
+  if (themeId !== "rust") {
+    st.progress.themeUnlocked.push(themeId);
+    st.progress.themeSelected = themeId;
+  }
+  stateApi.startRun(st, Date.now());
+  var battle = stateApi.startBattle(st, "normal");
+  return { got: battle.maxHp, theme: themeId, enemy: battle.enemyId };
+}
+var hpRust = hpOf("rust");
+var hpFrost = hpOf("frost");
+var hpEmber = hpOf("ember");
+enemiesApiT.poolFor = realPoolFor;
+
+ok("锈蚀车厢敌人血量不变", hpRust.got === 20, hpRust.got + " / " + hpRust.enemy);
+ok("霜封车厢敌人血量 +15%", hpFrost.got === 23, hpFrost.got + " / " + hpFrost.enemy);
+ok("焚炉车厢只加伤害不动血量", hpEmber.got === 20, hpEmber.got + " / " + hpEmber.enemy);
+
+// 主题偏好靠权重而不是硬过滤：霜封下车厢同调的敌人占比应明显更高
+function shareOfTagged(themeId, enemyTag, rounds) {
+  var st = stateApi.createDefaultState(Date.now());
+  if (themeId !== "rust") {
+    st.progress.themeUnlocked.push(themeId);
+    st.progress.themeSelected = themeId;
+  }
+  stateApi.startRun(st, Date.now());
+  var hits = 0;
+  var i;
+  for (i = 0; i < rounds; i += 1) {
+    var b = stateApi.startBattle(st, "normal");
+    var def = require("../js/game/data/enemies").getById(b.enemyId);
+    if (def.themes && def.themes.indexOf(enemyTag) >= 0) hits += 1;
+  }
+  return hits / rounds;
+}
+var shareRust = shareOfTagged("rust", "frost", 200);
+var shareFrost = shareOfTagged("frost", "frost", 200);
+ok("霜封车厢更容易遇到冰霜系敌人", shareFrost > shareRust + 0.15,
+  "锈蚀 " + shareRust.toFixed(2) + " → 霜封 " + shareFrost.toFixed(2));
+
+// 金币倍率：焚炉战斗金币 +40%
+var stGold = stateApi.createDefaultState(Date.now());
+stGold.progress.themeUnlocked.push("ember");
+stGold.progress.themeSelected = "ember";
+stateApi.startRun(stGold, Date.now());
+var stGoldRust = stateApi.createDefaultState(Date.now());
+stateApi.startRun(stGoldRust, Date.now());
+var bGold = makeBattle(stGold, { hp: 1, maxHp: 1, reward: { ether: 0, gold: 20 } });
+stateApi.battleAction(stGold, "precise");
+var bGoldRust = makeBattle(stGoldRust, { hp: 1, maxHp: 1, reward: { ether: 0, gold: 20 } });
+stateApi.battleAction(stGoldRust, "precise");
+ok("焚炉战斗金币 +40%",
+  stGold.player.gold - 4 === 28 && stGoldRust.player.gold - 4 === 20,
+  "焚炉获得 " + (stGold.player.gold - 4) + " / 锈蚀获得 " + (stGoldRust.player.gold - 4));
+
+// 存档：未知道具 id 一律丢弃，非法选中回退
+var stSv = stateApi.createDefaultState(Date.now());
+stSv.progress.themeUnlocked = ["rust", "ember", "frost", "hacked", "rust"];
+stSv.progress.themeSelected = "hacked";
+stSv.run.theme = "hacked";
+storage.save(stSv);
+var stLoaded = storage.load();
+ok("主题解锁表白名单化并去重", stLoaded.progress.themeUnlocked.join(",") === "rust,ember,frost",
+  JSON.stringify(stLoaded.progress.themeUnlocked));
+ok("非法选中回退锈蚀车厢", stLoaded.progress.themeSelected === "rust", stLoaded.progress.themeSelected);
+ok("非法的本局主题回退锈蚀车厢", stLoaded.run.theme === "rust", stLoaded.run.theme);
+ok("存档版本已升到 5", stLoaded.schemaVersion === 5, "实际 " + stLoaded.schemaVersion);
+ok("旧档无主题字段时补默认值", (function () {
+  var bare = stateApi.createDefaultState(Date.now());
+  delete bare.progress.themeUnlocked;
+  delete bare.progress.themeSelected;
+  delete bare.run.theme;
+  storage.save(bare);
+  var back = storage.load();
+  return back.progress.themeUnlocked.join(",") === "rust" &&
+    back.progress.themeSelected === "rust" && back.run.theme === "rust";
+})());
+
+// 每日挑战必须回到锈蚀车厢：否则「同一天同一套条件」的承诺会被主题倍率破坏
+var stDailyTheme = stateApi.createDefaultState(Date.now());
+stDailyTheme.progress.trainUpgrades.observatory = 3;
+stDailyTheme.progress.themeUnlocked.push("ember");
+stDailyTheme.progress.themeSelected = "ember";
+var dailyRes = stateApi.startDaily(stDailyTheme, Date.now());
+ok("每日挑战无视已选主题，固定锈蚀车厢",
+  dailyRes.ok && dailyRes.run.theme === "rust",
+  dailyRes.ok ? dailyRes.run.theme : dailyRes.message);
 
 /* ---------------- 汇总 ---------------- */
 
