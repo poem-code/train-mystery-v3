@@ -244,6 +244,23 @@
       state.run.battle.logs.unshift("精准射击命中，造成 23 点伤害。");
       state.run.battle.logs.unshift(state.run.battle.name + " 反击，造成 11 点伤害。");
       state.run.battle.logs.unshift(state.run.battle.name + " 固守姿态，获得 10 点护盾。");
+
+      // tele=charge|swarm|weave 注入下回合预告：用来检查徽标排版、蓄力姿态与按钮高亮
+      var wantTele = q.get("tele");
+      if (wantTele === "charge" || wantTele === "swarm" || wantTele === "weave") {
+        var presets = {
+          charge: { label: "蓄势", detail: "下一击 +8" },
+          swarm: { label: "集结", detail: "连击两次" },
+          weave: { label: "吐丝", detail: "缠住你" }
+        };
+        state.run.battle.telegraph = {
+          kind: wantTele,
+          label: presets[wantTele].label,
+          detail: presets[wantTele].detail,
+          log: ""
+        };
+        if (wantTele === "charge") state.run.battle.enemyCharge = 1;
+      }
     }
   } else if (modal === "enhance") {
     state.current.modal = null;
