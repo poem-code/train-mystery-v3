@@ -12,7 +12,7 @@ Canvas 全自绘，无 DOM 依赖，无第三方库，纯 ES5（`var` 到底）�
 
 ```bash
 # 1) 无头回归（不需要任何环境，Node 直接跑）
-node tools/test-headless.js          # 125 项
+node tools/test-headless.js          # 141 项
 
 # 2) 数值平衡模拟（批量跑局，统计通关率与死亡分布）
 node tools/sim-balance.js 300
@@ -93,7 +93,7 @@ js/
 
   platform/              ——宿主差异收敛在这里
     platform.js          tt / 浏览器 / Node 三态封装（含剪贴板、震动、分享）
-    audio.js             音效通道（12 个合成音）
+    audio.js             音效通道（16 个合成音，按需建池）
     bgm.js               音乐通道（3 首循环，独立音量，渐变淡入淡出）
     ad.js                激励视频（含「不发奖」风控）
     diagnostics.js       环形日志 + 环境快照 + 一键复制
@@ -108,7 +108,8 @@ js/
     registry.js          场景与弹窗注册表
 
     data/                纯数据，禁止放函数（否则存档不可序列化）
-      enemies.js         30 个敌人模板（19 普通 / 6 精英 / 5 Boss）
+      enemies.js         30 个敌人模板（19 普通 / 6 精英 / 5 Boss，各带受击材质）
+      materials.js       4 种打击材质（音色 + 粒子色，纯表现）
       affixes.js         8 个精英词缀
       relics.js          26 件遗物
       enhancements.js    34 项局内强化
@@ -125,10 +126,10 @@ js/
                          summary / info / settings / trainUpgrade / codex / daily
 
 assets/
-  audio/                 12 个音效 + 3 首 BGM（合计约 928 KB，程序合成，无版权风险）
+  audio/                 16 个音效 + 3 首 BGM（合计约 934 KB，程序合成，无版权风险）
 
 tools/
-  test-headless.js       无头回归（125 项）
+  test-headless.js       无头回归（141 项）
   sim-balance.js         批量模拟，输出通关率与死亡分布
   gen-audio.py           程序合成音效与 BGM
   build-bundle.js        把 js/ 打成浏览器可跑的 bundle（仅本地预览用）
@@ -176,7 +177,7 @@ docs/                    架构 / 内容表 / 调参手册 / 上线清单 / 完�
 - 存档：schema 4→5 迁移、白名单深合并、脏档自洽修补、地图按 seed 还原、每日限制按日期重推导
 - 平台：激励视频风控、分享、震动、前后台落盘、错误上报、音效/音乐双通道三态封装
 - **美术**：15 个按 trait 区分的矢量剪影原型（含织网/寄生/狂化/赌徒）+ 地面投影 + 高光弧 + 7 个几何节点字形 + 三层视差背景
-- **打击感**：伤害飘字、粒子溅射、震屏、闪白、受击后坐力、12 个程序合成音效、3 首循环 BGM
+- **打击感**：伤害飘字、粒子溅射、震屏、闪白、受击后坐力、**4 种受击材质分层音效**（金属/血肉/丝布/虚空，重击再叠一层低频）、16 个程序合成音效、3 首循环 BGM
 - **可诊断**：环形日志（60 条）+ 环境快照 + 帧统计（fps / renderMs / 慢帧）+ 一键复制
 - 隐私说明 / 用户服务 / 玩法说明 / 关于（提审必备页）
 
@@ -184,7 +185,7 @@ docs/                    架构 / 内容表 / 调参手册 / 上线清单 / 完�
 
 | 手段 | 规模 | 结果 |
 |---|---|---|
-| `test-headless.js` | 125 项 | 125 / 125 通过 |
+| `test-headless.js` | 141 项 | 141 / 141 通过 |
 | `sim-balance.js` | 千局 | 锈蚀 ~45% / 霜封 ~44.6% / 焚炉 ~40.6%，失败集中在 L9 Boss |
 
 测试覆盖：整机启动、全链路自动通关（Math.random 固定种子，结果可复现）、存档往返与迁移、脏档与越界点击、

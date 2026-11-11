@@ -12,6 +12,7 @@ var ui = require("../../core/ui");
 var common = require("../ui-common");
 var stateApi = require("../state");
 var config = require("../config");
+var materialsApi = require("../data/materials");
 
 var P = draw.PALETTE;
 
@@ -57,8 +58,10 @@ function render(ctx, screen, state, animator) {
   var innerW = r.w - pad * 2;
   var cursor = r.y + pad;
 
-  // 类型 + 回合
-  draw.text(ctx, actionLabel(battle.kind), left, cursor, {
+  // 类型 + 材质 + 回合
+  // 材质放在这一行而不是另起一行：它是「说明这刀打上去是什么手感」的注脚，
+  // 不该占用垂直空间（战斗面板的每一像素都要留给日志）
+  draw.text(ctx, actionLabel(battle.kind) + " · " + materialsApi.nameOf(battle.material), left, cursor, {
     size: screen.fz(10),
     bold: true,
     color: battle.boss ? "#FF8B7A" : battle.elite ? "#E88A7D" : P.inkFaint
@@ -396,6 +399,9 @@ function onAction(action, state, app) {
     var afterBattle = state.run && state.run.battle;
     var dealt = enemyHpBefore - (afterBattle ? afterBattle.hp : 0);
     if (dealt > 0) {
+      // 材质决定「这一刀打的是什么」：铁是冷白火星、肉是暖红血雾、布是土黄碎屑、虚空是紫色残光。
+      // 音色与粒子色共用同一个材质字段，玩家的视觉与听觉指向同一件事。
+      var spark = materialsApi.getById(battleBefore && battleBefore.material).spark;
       if (fx) {
         var big = dealt >= 20;
         fx.float(hp.x, hp.y - px(8), "-" + dealt, {
@@ -406,7 +412,7 @@ function onAction(action, state, app) {
         });
         fx.burst(hp.x, hp.y, {
           count: big ? 20 : 12,
-          color: big ? "#F2CD84" : "#FFB199",
+          color: spark,
           speed: big ? 240 : 165,
           life: 460,
           size: px(3)
@@ -419,7 +425,14 @@ function onAction(action, state, app) {
           fx.shake(px(4), 150);
         }
       }
-      if (app.sound) app.sound(dealt >= 20 ? "crit" : "hit", dealt >= 20 ? 0.85 : 0.65);
+      // 音层由数据决定：普通命中只出材质层，重击叠一层通用低频
+      if (app.sound) {
+        var layers = materialsApi.layersFor(battleBefore && battleBefore.material, { crit: dealt >= 20 });
+        var li;
+        for (li = 0; li < layers.length; li += 1) {
+          app.sound(layers[li].name, layers[li].volume);
+        }
+      }
     }
     // 打在护盾上：没有血条变化，但要告诉玩家「被挡了」
     if (dealt <= 0 && result.ok && (command === "precise" || command === "power")) {

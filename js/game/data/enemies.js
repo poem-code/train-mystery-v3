@@ -2,6 +2,9 @@
  * data/enemies.js —— 敌人模板
  *
  * 字段：
+ * - material: 受击材质（metal / flesh / cloth / void，决定打击音色与粒子色；
+ *             纯表现，不参与任何数值。新增敌人必须给，缺省会被测试标记）
+ * - themes:   车厢主题权重标签（可选，命中的主题下更容易抽到）
  * - trait:     行为特性（决定 enemyTurn / battleAction 的分支）
  * - figure:    剪影形状（normal / elite / boss）
  * - hpRange:   血量区间（普通怪用，随机取值）
@@ -20,6 +23,7 @@ var ENEMIES = [
   /* ---------------- 普通 ---------------- */
   {
     id: "strayHound",
+    material: "flesh",
     name: "反击猎犬",
     kind: "normal",
     trait: "wolf",
@@ -33,6 +37,7 @@ var ENEMIES = [
   },
   {
     id: "guardConstruct",
+    material: "metal",
     name: "坚守构体",
     kind: "normal",
     trait: "idol",
@@ -46,7 +51,7 @@ var ENEMIES = [
   },
   {
     id: "shallowWisp",
-
+    material: "cloth",
     themes: ["frost"],
     name: "浅域游魂",
     kind: "normal",
@@ -61,6 +66,7 @@ var ENEMIES = [
   },
   {
     id: "noiseStalker",
+    material: "cloth",
     name: "噪响潜伏者",
     kind: "normal",
     trait: "assassin",
@@ -74,6 +80,7 @@ var ENEMIES = [
   },
   {
     id: "rustScavenger",
+    material: "metal",
     name: "锈蚀拾荒者",
     kind: "normal",
     trait: "armored",
@@ -87,7 +94,7 @@ var ENEMIES = [
   },
   {
     id: "corpseLamp",
-
+    material: "void",
     themes: ["ember"],
     name: "尸灯",
     kind: "normal",
@@ -102,6 +109,7 @@ var ENEMIES = [
   },
   {
     id: "beetleSwarm",
+    material: "flesh",
     name: "甲虫群",
     kind: "normal",
     trait: "swarm",
@@ -115,7 +123,7 @@ var ENEMIES = [
   },
   {
     id: "glassEcho",
-
+    material: "metal",
     themes: ["frost"],
     name: "玻璃回响",
     kind: "normal",
@@ -130,7 +138,7 @@ var ENEMIES = [
   },
   {
     id: "cinderHound",
-
+    material: "flesh",
     themes: ["ember"],
     name: "灰烬猎犬",
     kind: "normal",
@@ -145,6 +153,7 @@ var ENEMIES = [
   },
   {
     id: "ticketGhost",
+    material: "cloth",
     name: "检票幽灵",
     kind: "normal",
     trait: "wisp",
@@ -158,7 +167,7 @@ var ENEMIES = [
   },
   {
     id: "ironMoth",
-
+    material: "metal",
     themes: ["frost"],
     name: "铁翼蛾",
     kind: "normal",
@@ -173,7 +182,7 @@ var ENEMIES = [
   },
   {
     id: "wailingBride",
-
+    material: "flesh",
     themes: ["frost"],
     name: "哀鸣新娘",
     kind: "normal",
@@ -190,6 +199,7 @@ var ENEMIES = [
   /* ---------------- 精英 ---------------- */
   {
     id: "riftHunter",
+    material: "void",
     name: "裂隙执猎者",
     kind: "elite",
     trait: "assassin",
@@ -203,6 +213,7 @@ var ENEMIES = [
   },
   {
     id: "ironWarden",
+    material: "metal",
     name: "铁锈守望",
     kind: "elite",
     trait: "idol",
@@ -216,6 +227,7 @@ var ENEMIES = [
   },
   {
     id: "shardGolem",
+    material: "metal",
     name: "碎片魔像",
     kind: "elite",
     trait: "armored",
@@ -229,7 +241,7 @@ var ENEMIES = [
   },
   {
     id: "twinEcho",
-
+    material: "void",
     themes: ["frost"],
     name: "双生回响",
     kind: "elite",
@@ -246,6 +258,7 @@ var ENEMIES = [
   /* ---------------- Boss ---------------- */
   {
     id: "riftWarden",
+    material: "void",
     name: "裂隙看守者",
     kind: "boss",
     trait: "overlord",
@@ -259,6 +272,7 @@ var ENEMIES = [
   },
   {
     id: "facelessConductor",
+    material: "void",
     name: "无面车长",
     kind: "boss",
     trait: "overlord",
@@ -272,7 +286,7 @@ var ENEMIES = [
   },
   {
     id: "rustStoker",
-
+    material: "metal",
     themes: ["ember"],
     name: "锈血司炉",
     kind: "boss",
@@ -301,7 +315,7 @@ var ENEMIES = [
   /* ---------------- 普通 · 第二批 ---------------- */
   {
     id: "threadWeaver",
-
+    material: "cloth",
     themes: ["frost"],
     name: "织网蛛",
     kind: "normal",
@@ -316,6 +330,7 @@ var ENEMIES = [
   },
   {
     id: "broodHost",
+    material: "flesh",
     name: "育卵客",
     kind: "normal",
     trait: "parasite",
@@ -329,7 +344,7 @@ var ENEMIES = [
   },
   {
     id: "frenziedMiner",
-
+    material: "flesh",
     themes: ["ember"],
     name: "狂乱矿工",
     kind: "normal",
@@ -344,6 +359,7 @@ var ENEMIES = [
   },
   {
     id: "boneGambler",
+    material: "flesh",
     name: "骸骨赌徒",
     kind: "normal",
     trait: "gambler",
@@ -357,7 +373,7 @@ var ENEMIES = [
   },
   {
     id: "ashPilgrim",
-
+    material: "cloth",
     themes: ["ember"],
     name: "灰烬朝圣者",
     kind: "normal",
@@ -372,6 +388,7 @@ var ENEMIES = [
   },
   {
     id: "chainHound",
+    material: "flesh",
     name: "锁链猎犬",
     kind: "normal",
     trait: "wolf",
@@ -385,6 +402,7 @@ var ENEMIES = [
   },
   {
     id: "rustPreacher",
+    material: "flesh",
     name: "锈蚀布道者",
     kind: "normal",
     trait: "vampire",
@@ -400,7 +418,7 @@ var ENEMIES = [
   /* ---------------- 精英 · 第二批 ---------------- */
   {
     id: "weaverMatron",
-
+    material: "cloth",
     themes: ["frost"],
     name: "织巢母体",
     kind: "elite",
@@ -415,7 +433,7 @@ var ENEMIES = [
   },
   {
     id: "hollowKing",
-
+    material: "void",
     themes: ["ember"],
     name: "空洞之王",
     kind: "elite",
@@ -432,6 +450,7 @@ var ENEMIES = [
   /* ---------------- Boss · 第二批 ---------------- */
   {
     id: "brokenSwitchman",
+    material: "metal",
     name: "断轨扳道工",
     kind: "boss",
     trait: "gambler",
@@ -445,6 +464,7 @@ var ENEMIES = [
   },
   {
     id: "thePassenger",
+    material: "flesh",
     name: "那位乘客",
     kind: "boss",
     trait: "parasite",

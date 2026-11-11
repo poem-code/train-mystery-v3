@@ -11,6 +11,7 @@ var common = require("../ui-common");
 var stateApi = require("../state");
 var config = require("../config");
 var enemiesApi = require("../data/enemies");
+var materialsApi = require("../data/materials");
 var relicsApi = require("../data/relics");
 var relicSetsApi = require("../data/relicSets");
 var enhApi = require("../data/enhancements");
@@ -50,7 +51,10 @@ function buildRows(state, tab) {
         name: entry && entry.seen ? enemy.name : "？？？",
         unlocked: !!(entry && entry.seen),
         desc: entry && entry.seen
-          ? (entry.defeats > 0 ? "已击败 " + entry.defeats + " 次" : "已遇见，尚未击败") + " · " + (enemy.intro || "无额外特性")
+          // 材质写在最前面：它是玩家在战斗里能「听出来」的属性，图鉴里得能对上号
+          ? "「" + materialsApi.nameOf(enemy.material) + "」" +
+            (entry.defeats > 0 ? "已击败 " + entry.defeats + " 次" : "已遇见，尚未击败") +
+            " · " + (enemy.intro || "无额外特性")
           : "尚未遇见",
         color: entry && entry.seen ? enemy.color : P.inkFaint
       });

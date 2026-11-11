@@ -827,6 +827,8 @@ function startBattle(state, kind) {
     kind: kind,
     enemyId: template.id,
     name: template.name,
+    // 材质只是表现层（打击音色 + 粒子色），存进战斗对象是为了读档后音画不丢
+    material: template.material,
     figure: template.figure,
     color: template.color,
     trait: template.trait,

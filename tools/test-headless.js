@@ -27,6 +27,15 @@ if (typeof global.localStorage === "undefined") {
   })();
 }
 
+/* ---------------- 时钟必须先钉死 ---------------- */
+
+// Date.now 必须在 require main 之前接管：platform.now() 内部有单调递增保护
+// （`if (t < lastNow) t = lastNow`），它在模块加载时就把 lastNow 设成了真实时间。
+// 之后再改 Date.now 也没用——返回值会被 lastNow 顶回去，于是每局 seed 都不同。
+var realNow = Date.now;
+var fixedNow = 1793000000000;
+Date.now = function () { return fixedNow; };
+
 global.__TM_TEST__ = {};
 
 var PASS = 0;
@@ -232,11 +241,9 @@ Math.random = function () {
   return seedState / 2147483648;
 };
 
-// 只固定 Math.random 还不够：地图 seed 来自 Date.now()，每次跑还是换一张图，
-// 同一条断言就会时红时绿。把时钟也钉死，自动游玩才是真正可复现的。
-var realNow = Date.now;
-var fixedNow = 1793000000000;
-Date.now = function () { return fixedNow; };
+// 第三个随机源：rng.js 的全局实例在**模块加载时**就用 Date.now() 播种（同文件顶部已接管），
+// 但那是在 require 串里更早发生的，保险起见显式重播一次，让战斗掷骰也钉死。
+require("../js/game/rng").reseed(20261110);
 
 var errorCount = 0;
 var steps = 0;
@@ -266,6 +273,13 @@ while (steps < MAX_STEPS) {
     getState().player.hp,
     getState().player.inventory.potion
   ]);
+  if (process.env.TM_TRACE) {
+    console.log("T" + steps + " " + sig + " ether=" + getState().player.ether +
+      " hunger=" + getState().player.hunger + " sanity=" + getState().player.sanity +
+      " relics=" + getState().run.relics.length + " enh=" + getState().run.enhancements.length +
+      " seed=" + getState().run.seed + " eid=" + (getState().run.battle ? getState().run.battle.enemyId : "-") +
+      " runs=" + getState().progress.runsStarted);
+  }
   if (sig === lastSignature) {
     stuckSteps += 1;
   } else {
@@ -1083,6 +1097,150 @@ ok("字符串档位按数字解析", sSetBack.run.setActive.vigil === 3,
   JSON.stringify(sSetBack.run.setActive));
 ok("非法档位不会打乱已有序列", sSetBack.run.setActive.arsenal === 1,
   JSON.stringify(sSetBack.run.setActive));
+
+/* ---------------- 打击材质 ---------------- */
+
+section("打击材质");
+
+var enemiesApiT = require("../js/game/data/enemies");
+var materialsApiT = require("../js/game/data/materials");
+var audioApiT = require("../js/platform/audio");
+var fs = require("fs");
+var path = require("path");
+
+var matIds = materialsApiT.ids();
+var matMissing = [];
+var matBad = [];
+var matCount = {};
+var sparkBad = [];
+matIds.forEach(function (id) { matCount[id] = 0; });
+enemiesApiT.ENEMIES.forEach(function (enemy) {
+  if (!materialsApiT.isId(enemy.material)) {
+    matMissing.push(enemy.id + ":" + enemy.material);
+  } else {
+    matCount[enemy.material] += 1;
+  }
+  var spark = materialsApiT.getById(enemy.material).spark;
+  if (!/^#[0-9A-Fa-f]{6}$/.test(spark)) sparkBad.push(enemy.id);
+});
+
+ok("30 只敌人都声明了合法材质", matMissing.length === 0, matMissing.join(","));
+ok("四种材质都有敌人", matIds.every(function (id) { return matCount[id] > 0; }),
+  JSON.stringify(matCount));
+// 每种材质至少 3 只：只有一个敌人的材质等于没做，玩家一辈子听不到第二遍
+ok("每种材质至少 3 只敌人承载",
+  matIds.every(function (id) { return matCount[id] >= 3; }), JSON.stringify(matCount));
+ok("材质粒子色都是合法 #RRGGBB", sparkBad.length === 0, sparkBad.join(","));
+
+// 音层：普通命中只出材质层；重击叠一层通用低频
+var layerBad = [];
+matIds.forEach(function (id) {
+  var normal = materialsApiT.layersFor(id, { crit: false });
+  var crit = materialsApiT.layersFor(id, { crit: true });
+  if (normal.length !== 1) layerBad.push(id + ".normal=" + normal.length);
+  else if (normal[0].name !== materialsApiT.getById(id).hit) layerBad.push(id + ".normal.name");
+  if (crit.length !== 2) layerBad.push(id + ".crit=" + crit.length);
+  else if (crit[0].name !== "crit") layerBad.push(id + ".crit.name");
+  else if (crit[1].name !== materialsApiT.getById(id).hit) layerBad.push(id + ".crit.layer");
+  if (!(normal[0].volume > 0 && normal[0].volume <= 1)) layerBad.push(id + ".vol");
+});
+ok("材质音层结构正确（普通 1 层 / 重击 2 层）", layerBad.length === 0, layerBad.join(","));
+
+ok("未知材质回退为默认材质",
+  materialsApiT.getById("nope") === materialsApiT.getById(materialsApiT.DEFAULT) &&
+  materialsApiT.getById(null).id === materialsApiT.DEFAULT &&
+  materialsApiT.getById(undefined).id === materialsApiT.DEFAULT);
+ok("未知材质的音层也能出声",
+  materialsApiT.layersFor("nope", {}).length === 1 &&
+  !!materialsApiT.layersFor("nope", {}).length);
+
+// 音效名与资源必须对得上：名字写错只会静默无声，靠这条断言兜住
+var soundMissing = [];
+var fileMissing = [];
+matIds.forEach(function (id) {
+  var name = materialsApiT.getById(id).hit;
+  if (audioApiT.SOUND_NAMES.indexOf(name) < 0) soundMissing.push(name);
+  var file = path.join(__dirname, "..", "assets", "audio", name + ".wav");
+  if (!fs.existsSync(file)) fileMissing.push(name + ".wav");
+});
+ok("材质音效名都在音频清单里", soundMissing.length === 0, soundMissing.join(","));
+ok("材质音效文件真实存在", fileMissing.length === 0, fileMissing.join(","));
+
+// 清单与磁盘整体对齐：任何一个名字写错都只会在真机上「静默无声」，测试必须替玩家发现
+var allSoundMissing = audioApiT.SOUND_NAMES.filter(function (name) {
+  return !fs.existsSync(path.join(__dirname, "..", "assets", "audio", name + ".wav"));
+});
+ok("音频清单里的每个音效都有 wav 文件", allSoundMissing.length === 0, allSoundMissing.join(","));
+
+// 播放器按需建池：Node 下没有 Audio，播放必须是「无声但不抛」的
+var silentAudio = audioApiT.createAudio({ basePath: "assets/audio/" });
+var playThrew = null;
+try {
+  silentAudio.play("hit_metal", 0.6);
+  silentAudio.play("crit", 0.8);
+  silentAudio.play("nope_not_a_sound", 0.5);
+} catch (error) {
+  playThrew = error;
+}
+ok("无音频环境下播放静默降级（含未知名字）", !playThrew, playThrew && playThrew.message);
+
+// 战斗对象必须带上材质，否则读档/换敌人后会全部退回默认音
+var matBattleBad = [];
+var matTrials = 60;
+var mi;
+for (mi = 0; mi < matTrials; mi += 1) {
+  var stMat = stateApi.createDefaultState(Date.now());
+  stateApi.startRun(stMat, Date.now());
+  stMat.run.layer = mi % 9;
+  var matBattle = stateApi.startBattle(stMat, mi % 5 === 0 ? "elite" : "normal");
+  var matTemplate = enemiesApiT.getById(matBattle.enemyId);
+  if (!matTemplate || matBattle.material !== matTemplate.material) {
+    matBattleBad.push(matBattle.enemyId + ":" + matBattle.material);
+  }
+}
+ok("开局战斗写入敌人材质", matBattleBad.length === 0, matBattleBad.slice(0, 3).join(","));
+
+// 材质是纯表现：换成别的材质，数值必须纹丝不动
+function materialDamageProbe(materialId) {
+  var stProbe = freshRun();
+  var bProbe = makeBattle(stProbe, {
+    material: materialId, hp: 100, maxHp: 100, damageRange: [10, 10]
+  });
+  stateApi.battleAction(stProbe, "precise");
+  return { hp: stProbe.player.hp, enemyHp: bProbe.hp };
+}
+var probeMetal = materialDamageProbe("metal");
+var probeVoid = materialDamageProbe("void");
+ok("材质不参与数值计算",
+  probeMetal.hp === probeVoid.hp && probeMetal.enemyHp === probeVoid.enemyHp,
+  JSON.stringify(probeMetal) + " vs " + JSON.stringify(probeVoid));
+
+// 存档：材质字段缺失/被改坏都不能让读档失败
+var sMat = freshRun();
+var bMat = stateApi.startBattle(sMat, "normal");
+var savedEnemyId = bMat.enemyId;
+sMat.run.battle.material = "hacked";
+storage.save(sMat);
+var sMatBack = storage.load();
+ok("非法材质按 enemyId 反查回真实材质",
+  sMatBack.run.battle.material === enemiesApiT.getById(savedEnemyId).material,
+  sMatBack.run.battle.material + " / enemy " + savedEnemyId);
+
+var sMat2 = freshRun();
+var bMat2 = stateApi.startBattle(sMat2, "normal");
+delete sMat2.run.battle.material;
+sMat2.run.battle.enemyId = "doesNotExist";
+storage.save(sMat2);
+var sMat2Back = storage.load();
+ok("材质与 enemyId 都不认识时回退默认",
+  sMat2Back.run.battle.material === materialsApiT.DEFAULT, sMat2Back.run.battle.material);
+
+var sMat3 = freshRun();
+stateApi.startBattle(sMat3, "normal");
+sMat3.run.battle.material = "cloth";
+storage.save(sMat3);
+var sMat3Back = storage.load();
+ok("合法材质原样保留", sMat3Back.run.battle.material === "cloth", sMat3Back.run.battle.material);
 
 /* ---------------- 汇总 ---------------- */
 console.log("\n" + "=".repeat(46));

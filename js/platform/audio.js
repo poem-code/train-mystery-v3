@@ -8,9 +8,18 @@
  * - 关音效只关播放，不销毁实例，切回来立刻有声。
  */
 
+/**
+ * 音效清单 = assets/audio 里实际存在的文件。
+ * 名字写错了不会报错，只会静默无声——所以 test-headless 会校验
+ * 「数据层引用的音效名都在这里，且对应 wav 文件真的存在」。
+ *
+ * hit_* 是打击的材质层（见 game/data/materials.js）：
+ * 同一套「出手」动作，打铁、打肉、打布、打虚空听感必须不同。
+ */
 var SOUND_NAMES = [
   "tap", "bow", "hit", "crit", "shield", "heal",
-  "coin", "win", "lose", "step", "select", "alert"
+  "coin", "win", "lose", "step", "select", "alert",
+  "hit_metal", "hit_flesh", "hit_cloth", "hit_void"
 ];
 
 var DEFAULT_BASE = "assets/audio/";
@@ -26,7 +35,6 @@ function createAudio(options) {
   var pools = {};
   var cursor = {};
   var enabled = opts.enabled !== false;
-  var ready = false;
 
   function url(name) {
     return base + name + ".wav";
@@ -57,28 +65,35 @@ function createAudio(options) {
     return null;
   }
 
-  function init() {
-    if (ready) return;
-    ready = true;
-    if (isNodeEnv) return;
-    var i;
-    for (i = 0; i < SOUND_NAMES.length; i += 1) {
-      var name = SOUND_NAMES[i];
-      var list = [];
+  /**
+   * 按需建池：只有真的播到某个音效时才建它的实例。
+   * 一次性把 16 个音效全建出来会瞬间占用 32 个 InnerAudioContext，
+   * 低端机上容易撞到宿主上限（超出的会静默失败，听起来像「音效丢了」）。
+   */
+  function buildPool(name) {
+    if (pools[name]) return pools[name];
+    var list = [];
+    if (!isNodeEnv) {
       var k;
       for (k = 0; k < poolSize; k += 1) {
         var item = buildOne(name);
         if (item) list.push(item);
       }
-      pools[name] = list;
-      cursor[name] = 0;
     }
+    pools[name] = list;
+    cursor[name] = 0;
+    return list;
+  }
+
+  /** 预热（可选）：想提前建满所有池时调用，正常流程不需要 */
+  function init() {
+    var i;
+    for (i = 0; i < SOUND_NAMES.length; i += 1) buildPool(SOUND_NAMES[i]);
   }
 
   function play(name, volume) {
     if (!enabled) return;
-    init();
-    var list = pools[name];
+    var list = buildPool(name);
     if (!list || !list.length) return;
     var index = cursor[name] % list.length;
     cursor[name] = index + 1;

@@ -65,12 +65,29 @@ function createRng(seed) {
   };
 }
 
-/** 全局默认随机（战斗伤害用，不需要复现） */
+/**
+ * 全局默认随机（战斗伤害用，不需要复现）。
+ * 注意：这里的种子在**模块加载时**取 Date.now()，早于任何调用方——
+ * 所以「想复现一场战斗」必须调 reseed()，改 Date.now 是没用的。
+ */
 var globalRng = createRng(Date.now() & 0x7FFFFFFF);
+
+/** 重新播种全局随机：用于复现某次战斗，或让自动化测试稳定 */
+function reseed(seed) {
+  globalRng = createRng(seed);
+}
+
+// 转发而不是直接导出实例的方法：reseed 换了实例之后，这些引用必须跟着换
+function int(min, max) { return globalRng.int(min, max); }
+function pick(list) { return globalRng.pick(list); }
+function shuffle(list) { return globalRng.shuffle(list); }
+function weighted(weights) { return globalRng.weighted(weights); }
 
 module.exports = {
   createRng: createRng,
-  int: globalRng.int,
-  pick: globalRng.pick,
-  shuffle: globalRng.shuffle
+  reseed: reseed,
+  int: int,
+  pick: pick,
+  shuffle: shuffle,
+  weighted: weighted
 };

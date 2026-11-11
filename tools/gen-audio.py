@@ -109,6 +109,66 @@ def write_wav(name, samples, peak=0.86):
     return path, os.path.getsize(path)
 
 
+def crush(samples, steps=9):
+    """量化：把连续波形拍成台阶，制造「不干净」的失真感（虚空材质用）"""
+    return [round(v * steps) / steps for v in samples]
+
+
+def build_materials():
+    """
+    受击材质层（对应 js/game/data/materials.js）。
+
+    四条音必须**闭着眼能分开**，否则这一层就白做了：
+    - metal  高频、非谐波、余响长 —— 像敲铁板（钟状分音比 1 : 2.76 : 5.40）
+    - flesh  低频闷响 + 湿噪声   —— 像打在一袋水上
+    - cloth  短促干涩的摩擦     —— 几乎只有噪声，没有音高
+    - void   下坠 + 量化失真     —— 像声音被打进水里并且坏了
+    单条 0.15—0.3 秒，四条合计约 25KB。
+    """
+    out = []
+
+    # 1) 金属：钟状非谐波分音 + 高频撞击点
+    base = 560.0
+    ratios = [1.0, 2.76, 5.40, 8.93]
+    amps = [0.55, 0.30, 0.17, 0.09]
+    parts = []
+    for r, a in zip(ratios, amps):
+        long_partial = r < 3.0
+        parts.append(tone(base * r, base * r * 0.985,
+                          0.24 if long_partial else 0.12, a,
+                          decay=9.0 if long_partial else 19.0,
+                          noise=0.02))
+    parts.append(noise_burst(0.02, 0.24, decay=30, lp=0.92))
+    # 低频身体：只有高频分音会「薄」，加一点下盘才有分量
+    parts.append(tone(190, 108, 0.10, 0.34, decay=15))
+    out.append(("hit_metal", mix(*parts)))
+
+    # 2) 血肉：低频冲击 + 湿的中频噪声 + 短促挤压
+    out.append(("hit_flesh", mix(
+        tone(215, 88, 0.13, 0.74, decay=13),
+        noise_burst(0.11, 0.34, decay=14, lp=0.20),
+        # 「湿」的一下：中高频噪声短促地溅出来，这是血肉与通用闷响的区别所在。
+        # 音量给到 0.3 —— 太低会被低频冲击的峰值归一化压成听不见。
+        tone(760, 520, 0.07, 0.30, decay=22, noise=0.7),
+    )))
+
+    # 3) 丝布：两层噪声（一层干、一层薄）+ 极弱的音高，靠噪声质感区分
+    out.append(("hit_cloth", mix(
+        noise_burst(0.13, 0.36, decay=8, lp=0.30),
+        noise_burst(0.09, 0.17, decay=15, lp=0.05),
+        tone(300, 205, 0.06, 0.10, decay=20, wave_type="tri"),
+    )))
+
+    # 4) 虚空：大幅度下滑 + 次低频 + 量化失真（失真放在最后，别被混音冲淡）
+    body = mix(
+        tone(430, 74, 0.28, 0.55, decay=5.2, noise=0.08),
+        tone(54, 46, 0.32, 0.46, decay=4.0),
+    )
+    out.append(("hit_void", mix(crush(body, 9), noise_burst(0.05, 0.10, decay=18, lp=0.12))))
+
+    return out
+
+
 def build():
     files = []
 
@@ -185,6 +245,11 @@ def build():
     s = mix(tone(220, 180, 0.20, 0.42, decay=4.5, wave_type="square", noise=0.1),
             tone(440, 360, 0.18, 0.18, decay=5))
     files.append(("alert", s))
+
+    # 13—16) 受击材质层
+    # 放在最后追加：random 序列前面已经用掉的部分不受影响，
+    # 已有的 12 个音效逐字节不变（改音色不会顺带改坏别的音效）。
+    files.extend(build_materials())
 
     total = 0
     for name, samples in files:
@@ -277,6 +342,9 @@ def fade_edges(samples, ms=120, sr=SR_BGM):
 
 
 def build_bgm():
+    # BGM 自己播种：不播种的话，它的噪声底噪取决于前面 build() 用掉了多少随机数——
+    # 加一条音效就会顺带把三首 BGM 全改一遍（0.7.0 加材质音时踩到了）。
+    random.seed(20261110)
     sr = SR_BGM
     dur = 12.0
     n = int(sr * dur)

@@ -10,6 +10,8 @@
 var config = require("./config");
 var stateApi = require("./state");
 var themesApi = require("./data/themes");
+var materialsApi = require("./data/materials");
+var enemiesApi = require("./data/enemies");
 var platform = require("../platform/platform");
 
 var SCENES = { home: 1, train: 1, route: 1 };
@@ -262,6 +264,18 @@ function sanitizeEffects(raw) {
   return base;
 }
 
+/**
+ * 战斗材质：存档里可能没有（0.6 及更早的档）、也可能被改坏。
+ * 优先信任合法值，其次按 enemyId 反查模板，最后回退材质默认值。
+ * 这里绝不允许失败——材质只是表现层，读档不能因为它整局作废。
+ */
+function materialOf(raw) {
+  if (materialsApi.isId(raw.material)) return raw.material;
+  var template = enemiesApi.getById(raw.enemyId);
+  if (template && materialsApi.isId(template.material)) return template.material;
+  return materialsApi.DEFAULT;
+}
+
 function sanitizeBattle(raw) {
   if (!raw || typeof raw !== "object") return null;
   var maxHp = toInt(raw.maxHp, 1, 9999, 1);
@@ -272,6 +286,8 @@ function sanitizeBattle(raw) {
     kind: raw.kind === "elite" ? "elite" : raw.kind === "boss" ? "boss" : "normal",
     enemyId: typeof raw.enemyId === "string" ? raw.enemyId : "strayHound",
     name: typeof raw.name === "string" ? raw.name.slice(0, 20) : "未知敌人",
+    // 材质只影响音色与粒子色：字段坏了就按 enemyId 反查模板，查不到回退默认
+    material: materialOf(raw),
     figure: raw.figure === "boss" ? "boss" : raw.figure === "elite" ? "elite" : "normal",
     color: typeof raw.color === "string" ? raw.color : "#9FB0BA",
     trait: typeof raw.trait === "string" ? raw.trait : "normal",

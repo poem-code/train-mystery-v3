@@ -111,11 +111,36 @@ var hit = ui.hitTest(x, y);    // 从栈顶往下找第一个包含点的矩形
 - 玩家诉求不同：很多人只想关音乐保留音效
 - tt 容器对 `volume` 的响应有延迟，改音量会爆音，所以 `bgm.fadeTo()` 拆成 8 步渐变
 
+### 打击音效分层：数据决定音色
+
+敌人带 `material` 字段（`data/materials.js`），战斗只负责「按材质取音层」：
+
+```js
+materialsApi.layersFor(battle.material, { crit: dealt >= 20 })
+// → [{name:"crit",volume:0.78},{name:"hit_metal",volume:0.40}]  重击
+// → [{name:"hit_flesh",volume:0.66}]                              普通命中
+```
+
+返回**数组**而不是单个名字，是为了让调用处直接 for 循环播：
+以后要加「破盾层」「属性层」不用改调用处签名。
+
+三处设计取舍：
+
+- **音层要拼，不要逐敌人配**。4 材质 × 2 强度 = 8 条音轨；逐敌人配是 60 条，包体先炸。
+- **材质是纯表现**。测试里有一条「材质不参与数值计算」：同一场战斗换成别的材质，
+  玩家与敌人的血量变化必须完全一致。一旦让材质影响伤害，它就成了第 5 个隐藏属性。
+- **按需建池**。`audio.play()` 第一次播某个名字时才创建它的实例池，
+  一口气建满 16 个音效会瞬间占用 32 个 `InnerAudioContext`，低端机上容易撞宿主上限，
+  超出的实例静默失败——听起来就是「某些音效丢了」。
+
+名字写错不会报错，只会无声。所以测试会校验两层：
+`materials.hit` 必须在 `audio.SOUND_NAMES` 里，且 `assets/audio/<hit>.wav` 真的存在。
+
 ---
 
 ## 四、存档与迁移
 
-`schemaVersion` 当前 **4**。改 `state` 结构必须 +1 并在 `storage.migrate` 补迁移。
+`schemaVersion` 当前 **5**。改 `state` 结构必须 +1 并在 `storage.migrate` 补迁移。
 
 ### 读档管线
 
