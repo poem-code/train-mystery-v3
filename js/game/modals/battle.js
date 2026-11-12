@@ -25,6 +25,24 @@ var P = draw.PALETTE;
 function linearEase(t) { return t; }
 
 /**
+ * 把 #RRGGBB 转成带透明度的 rgba 串。
+ *
+ * 不能靠 ctx.globalAlpha 做半透明：draw.figure 内部走 figFill，那里会把
+ * globalAlpha 覆盖成 0.94，外层设的透明度会被无声地吃掉。所以透明度必须
+ * 落在颜色字符串里。颜色不合法时退回中性灰，画面上最多是「影子颜色不对」，
+ * 不会整帧抛错。
+ */
+function fadeColor(hex, alpha) {
+  var h = typeof hex === "string" && hex.charAt(0) === "#" ? hex.slice(1) : "";
+  if (h.length !== 6) return "rgba(160,170,178," + alpha + ")";
+  var r = parseInt(h.slice(0, 2), 16);
+  var g = parseInt(h.slice(2, 4), 16);
+  var b = parseInt(h.slice(4, 6), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return "rgba(160,170,178," + alpha + ")";
+  return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
+}
+
+/**
  * 最近一次渲染的坐标缓存。
  * onAction 拿不到 screen，特效需要知道「敌人在哪」才能把飘字打对位置，
  * 所以由 render 每帧写入，onAction 读取。屏幕尺寸变化时 render 会立刻刷新。
@@ -82,11 +100,19 @@ function render(ctx, screen, state, animator, clock) {
   cursor += screen.px(15);
 
   // 敌人名 + 词缀徽标（精英必须在打之前就能看出「他有什么毛病」）
+  // 第二形态的形态名徽标也在这里先算宽度：名字是先画的，徽标是后画的，
+  // 不把这几十像素让出来，窄屏上长名字会钻到徽标底下被盖掉。
+  var phaseLabelTxt = battle.boss && battle.phase >= 2 ? (battle.phaseLabel || "第二阶段") : null;
+  var phaseChipW = phaseLabelTxt
+    ? draw.measure(ctx, phaseLabelTxt, screen.fz(9), true) + screen.px(12) : 0;
   var nameMaxW = innerW;
+  var affixChipW = 0;
+  if (phaseChipW) nameMaxW -= phaseChipW + screen.px(8);
   if (battle.affixName) {
     var badge = "词缀 · " + battle.affixName;
     var bw = draw.measure(ctx, badge, screen.fz(9), true) + screen.px(14);
-    nameMaxW = innerW - bw - screen.px(8);
+    affixChipW = bw;
+    nameMaxW -= bw + screen.px(8);
     var chip = { x: right - bw, y: cursor + screen.px(5), w: bw, h: screen.px(17) };
     draw.fillRR(ctx, chip, "rgba(224,177,92,0.18)", screen.px(9));
     draw.text(ctx, badge, chip.x + bw / 2, chip.y + screen.px(3), {
@@ -106,12 +132,20 @@ function render(ctx, screen, state, animator, clock) {
    * Boss 第二形态的标记。
    * 用徽标而不是「名字（第二阶段）」：名字改动会让玩家怀疑换了个敌人，
    * 而事实是同一个东西裂开了。徽标只加后缀信息，不重命名。
+   *
+   * 徽标文案跟着形态走：「双影」「查票」「过载」比统一写「第二阶段」有用得多——
+   * 五个 Boss 的第二形态各不相同，统一文案等于告诉玩家「又是一样的」。
+   * 老存档没有 phaseLabel 时退回通用文案，不会出现空徽标。
    */
-  if (battle.boss && battle.phase >= 2) {
-    var pw = draw.measure(ctx, "第二阶段", screen.fz(9), true) + screen.px(12);
-    var pchip = { x: right - pw, y: cursor + screen.px(9), w: pw, h: screen.px(16) };
+  if (phaseLabelTxt) {
+    var pw = phaseChipW;
+    // 词缀徽标也在这一行：两个都贴右边会叠成一团，形态名要往左让出词缀的位置
+    var pchip = {
+      x: right - pw - affixChipW - (affixChipW ? screen.px(6) : 0),
+      y: cursor + screen.px(9), w: pw, h: screen.px(16)
+    };
     draw.fillRR(ctx, pchip, "rgba(255,90,68,0.20)", screen.px(8));
-    draw.text(ctx, "第二阶段", pchip.x + pw / 2, pchip.y + screen.px(3), {
+    draw.text(ctx, phaseLabelTxt, pchip.x + pw / 2, pchip.y + screen.px(3), {
       size: screen.fz(9),
       align: "center",
       bold: true,
@@ -268,6 +302,28 @@ function render(ctx, screen, state, animator, clock) {
   }
   // 挨打时出手姿态让位：正被顶退的那一帧，「我举着弓」比「我被打中」次要
   var actW = 1 - hurt;
+
+  /**
+   * 双影：第二形态真的有两个影子，剪影就必须是两个。
+   *
+   * 只画一个半透明副本会被读成「重影 / 渲染叠了一层」，所以三个信号必须同时给：
+   * 落后半个身位、呼吸相位错开、颜色更暗。玩家看到的是「那边还站着一个」，
+   * 而不是「画面糊了」——这一段没有任何数值含义，只是让两段攻击有视觉依据。
+   */
+  if (battle.phaseHits > 1) {
+    var twinBreath = Math.sin(breatheT * Math.PI * 2 / (2.6 / phaseRate) + Math.PI * 0.85);
+    // 偏移量取敌人身宽的六成：再小两具剪影就糊成一团，玩家读到的是「渲染重影」
+    // 而不是「那边还站着一个」；再大就会压到玩家的血条上。
+    // 抬高 6px 是透视：站得远的那个，脚底在画面上更高一点。
+    draw.figure(ctx, enemyX - enemySize * 0.6 + tremble * screen.px(0.7),
+      stageCenter - screen.px(6), enemySize * 0.8,
+      battle.figure, fadeColor(battle.color, 0.38), battle.trait, {
+        bob: -screen.px(enemyAmp) * twinBreath + tremble * screen.px(0.5),
+        rot: -0.05 * charging + 0.05 * enemyDying,
+        sx: 1 + 0.03 * gathering - 0.03 * enemyDying,
+        sy: 1 - 0.02 * gathering - 0.05 * enemyDying
+      });
+  }
 
   draw.figure(ctx, enemyX + kick - lunge * screen.px(26) + charging * screen.px(4) + tremble * screen.px(1.2) - enemyDying * screen.px(2),
     stageCenter, enemySize,
@@ -639,7 +695,7 @@ function onAction(action, state, app) {
       });
       // 飘字要抬得比伤害数字高得多：伤害数字从 y-8 往上飘 52px，
       // 两个都在同一高度就会撞成一团「第二阶段-16」。
-      fx.float(bp2.x, bp2.y - px(58), "第二阶段", {
+      fx.float(bp2.x, bp2.y - px(58), battleBefore.phaseLabel || "第二阶段", {
         color: "#FF9C86", size: px(20), rise: px(24), bold: true
       });
     }

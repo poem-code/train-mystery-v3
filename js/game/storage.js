@@ -277,6 +277,17 @@ function materialOf(raw) {
 }
 
 /**
+ * 战斗动作 id 白名单。
+ * 「查票」靠 lastAction / prevAction 判定重复，这两个字段来自存档——
+ * 不白名单化的话，改存档就能把任意字符串塞进战斗对象，进而影响伤害判定。
+ */
+function sanitizeActionId(value) {
+  if (value === "precise" || value === "power" || value === "defend"
+    || value === "potion" || value === "execute") return value;
+  return null;
+}
+
+/**
  * 战斗预告（下一回合敌人要干什么）。
  * 只认白名单里的 kind，label/detail 截断长度：存档是可被改的，
  * 不能让一段任意文本顺着这里流进渲染层。
@@ -333,6 +344,13 @@ function sanitizeBattle(raw) {
     // 阶段必须存下来：读档丢掉它，一场打到一半的 Boss 战会退回第一形态，
     // 伤害区间也跟着回退——玩家辛苦打掉的半管血等于白打
     phase: toInt(raw.phase, 1, 2, 1),
+    // 形态名与段数：读档必须跟着回来。丢了它，UI 会把「双影」显示成默认的
+    // 「第二阶段」，而两段攻击的形态会退化成一段——存档等于偷偷改了难度
+    phaseLabel: typeof raw.phaseLabel === "string" && raw.phaseLabel
+      ? raw.phaseLabel.slice(0, 6) : null,
+    phaseHits: toInt(raw.phaseHits, 1, 3, 1),
+    lastAction: sanitizeActionId(raw.lastAction),
+    prevAction: sanitizeActionId(raw.prevAction),
     phaseBreak: raw.phaseBreak === true,
     enemyShield: toInt(raw.enemyShield, 0, 999, 0),
     playerShield: toInt(raw.playerShield, 0, 999, 0),

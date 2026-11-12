@@ -1742,6 +1742,233 @@ ok("濒死时敌人身体被压低",
   !!dpFullScale && !!dpDyingScale && dpDyingScale[1] < dpFullScale[1] - 0.02,
   (dpFullScale && dpFullScale[1].toFixed(3)) + " → " + (dpDyingScale && dpDyingScale[1].toFixed(3)));
 
+/* ---------------- 第二形态：五个 Boss 五套打法 ---------------- */
+
+section("第二形态各有各的打法");
+
+var enemiesAllT = require("../js/game/data/enemies").ENEMIES;
+var bossListT = enemiesAllT.filter(function (e) { return e.kind === "boss"; });
+var bossWithPhase2 = bossListT.filter(function (e) { return !!e.phase2; });
+
+ok("每个 Boss 都有自己的第二形态", bossWithPhase2.length === bossListT.length,
+  bossWithPhase2.length + "/" + bossListT.length);
+ok("形态名互不重复",
+  bossWithPhase2.map(function (e) { return e.phase2.label; }).filter(function (v, i, arr) {
+    return arr.indexOf(v) === i;
+  }).length === bossWithPhase2.length,
+  bossWithPhase2.map(function (e) { return e.phase2.label; }).join("/"));
+ok("每个形态都有形态名、崩开描述与规则说明（玩家读得到才叫机制）",
+  bossWithPhase2.every(function (e) {
+    return e.phase2.label && e.phase2.line && e.phase2.tip
+      && e.phase2.label.length <= 6 && e.phase2.line.length <= 26 && e.phase2.tip.length <= 34;
+  }),
+  JSON.stringify(bossWithPhase2.map(function (e) { return e.phase2.label; })));
+// 五套机制必须真的不一样：只改数字等于没改，第二次遇到就知道「又是那套」
+ok("五个形态的机制字段组合各不相同",
+  bossWithPhase2.map(function (e) {
+    return Object.keys(e.phase2).sort().join(",");
+  }).filter(function (v, i, arr) { return arr.indexOf(v) === i; }).length === bossWithPhase2.length);
+ok("普通与精英不带第二形态",
+  enemiesAllT.filter(function (e) {
+    return e.kind !== "boss" && e.phase2;
+  }).length === 0);
+
+// 双影：一回合两段，每段 55%（合计略高于原本的一击，但慢在护盾是按段吃的）
+var ph1 = freshRun();
+var bTwin = makeBattle(ph1, {
+  enemyId: "riftWarden", boss: true, phase: 2, phaseHits: 2, trait: "none",
+  hp: 500, maxHp: 500, damageRange: [10, 10]
+});
+stateApi.enemyTurn(ph1);
+ok("双影一回合打两段（10 → 6+6）", ph1.player.hp === 88, "玩家 " + ph1.player.hp);
+ok("双影的日志报的是连击次数而不是单次伤害",
+  bTwin.logs.some(function (t) { return t.indexOf("连击 2 次") >= 0; }), bTwin.logs[0]);
+
+// 防御架势只保第一段：蹲下换来的免伤在两段面前只剩一半
+var ph1b = freshRun();
+makeBattle(ph1b, {
+  enemyId: "riftWarden", boss: true, phase: 2, phaseHits: 2, trait: "none",
+  hp: 500, maxHp: 500, damageRange: [10, 10], defenseStance: true
+});
+stateApi.enemyTurn(ph1b);
+ok("双影面前防御架势只挡第一段（6×0.6 + 6 = 10）", ph1b.player.hp === 90, "玩家 " + ph1b.player.hp);
+
+// 查票：重复上回合同一招 = 伤害 +45%，换招就打回原形
+var ph2a = freshRun();
+var bTicket = makeBattle(ph2a, {
+  enemyId: "facelessConductor", boss: true, phase: 2, trait: "none",
+  hp: 500, maxHp: 500, damageRange: [10, 10],
+  lastAction: "precise", prevAction: "precise"
+});
+stateApi.enemyTurn(ph2a);
+ok("查票对重复动作加伤 45%（10 → 15）", ph2a.player.hp === 85, "玩家 " + ph2a.player.hp);
+ok("查票会把原因说出口", bTicket.logs.some(function (t) { return t.indexOf("认得这个动作") >= 0; }),
+  bTicket.logs[0]);
+
+var ph2b = freshRun();
+bTicket = makeBattle(ph2b, {
+  enemyId: "facelessConductor", boss: true, phase: 2, trait: "none",
+  hp: 500, maxHp: 500, damageRange: [10, 10],
+  lastAction: "defend", prevAction: "precise"
+});
+stateApi.enemyTurn(ph2b);
+ok("换了招就吃不到查票的惩罚", ph2b.player.hp === 90, "玩家 " + ph2b.player.hp);
+
+// 过载：它变强的方式是把自己烧掉
+var ph3 = freshRun();
+var bOver = makeBattle(ph3, {
+  enemyId: "rustStoker", boss: true, phase: 2, trait: "none",
+  hp: 500, maxHp: 500, damageRange: [10, 10]
+});
+stateApi.enemyTurn(ph3);
+ok("过载出手重 30%（10 → 13）", ph3.player.hp === 87, "玩家 " + ph3.player.hp);
+ok("过载每回合自损 5 点", bOver.hp === 495, "敌人 " + bOver.hp);
+ok("过载的自损不会把它自己耗死", (function () {
+  var t5 = freshRun();
+  var b = makeBattle(t5, {
+    enemyId: "rustStoker", boss: true, phase: 2, trait: "none",
+    hp: 4, maxHp: 500, damageRange: [0, 0]
+  });
+  stateApi.enemyTurn(t5);
+  return b.hp === 1;
+})());
+
+// 脱轨：35% 概率追加一击，掷骰子这件事必须能被测试钉住
+var ph4 = freshRun();
+makeBattle(ph4, {
+  enemyId: "brokenSwitchman", boss: true, phase: 2, trait: "none",
+  hp: 500, maxHp: 500, damageRange: [10, 10]
+});
+var randBackup = Math.random;
+Math.random = function () { return 0; }; // 必中追加
+stateApi.enemyTurn(ph4);
+Math.random = randBackup;
+ok("脱轨命中追加时多打一段（10 + 6）", ph4.player.hp === 84, "玩家 " + ph4.player.hp);
+
+var ph4b = freshRun();
+makeBattle(ph4b, {
+  enemyId: "brokenSwitchman", boss: true, phase: 2, trait: "none",
+  hp: 500, maxHp: 500, damageRange: [10, 10]
+});
+Math.random = function () { return 0.99; }; // 不追加
+stateApi.enemyTurn(ph4b);
+Math.random = randBackup;
+ok("脱轨没掷中时就是一记普通攻击", ph4b.player.hp === 90, "玩家 " + ph4b.player.hp);
+
+// 换宿主：穿盾 + 药剂减半，两条都是「别拖」的理由
+var ph5 = freshRun();
+var bHost = makeBattle(ph5, {
+  enemyId: "thePassenger", boss: true, phase: 2, trait: "none",
+  hp: 500, maxHp: 500, damageRange: [10, 10]
+});
+stateApi.enemyTurn(ph5);
+ok("换宿主每回合穿盾扣 3 点（10 + 3）", ph5.player.hp === 87, "玩家 " + ph5.player.hp);
+ok("换宿主的穿盾伤害在日志里单独说明",
+  bHost.logs.some(function (t) { return t.indexOf("翻了个身") >= 0; }), bHost.logs[0]);
+
+var ph5b = freshRun();
+ph5b.player.hp = 50;
+ph5b.player.inventory.potion = 2;
+var bHealCut = makeBattle(ph5b, {
+  enemyId: "thePassenger", boss: true, phase: 2, trait: "none",
+  hp: 500, maxHp: 500, damageRange: [0, 0]
+});
+ph5b.player.hp = 50;
+stateApi.battleAction(ph5b, "potion");
+// 药剂 30 → 只回 15，回合末再被穿盾扣 3：50 + 15 - 3 = 62
+ok("换宿主时药剂只回一半（30 → 15）", ph5b.player.hp === 62, "玩家 " + ph5b.player.hp);
+
+// 第一形态必须干净：同一只 Boss 在半血前不该带上任何第二形态的机制
+var ph6 = freshRun();
+makeBattle(ph6, {
+  enemyId: "thePassenger", boss: true, phase: 1, trait: "none",
+  hp: 500, maxHp: 500, damageRange: [10, 10]
+});
+stateApi.enemyTurn(ph6);
+ok("第一形态不吃第二形态的机制", ph6.player.hp === 90, "玩家 " + ph6.player.hp);
+
+// 兜底：模板上没写 phase2 的对手仍走旧的那套（旧存档 / 未来新增 Boss 不会崩）
+var ph7 = freshRun();
+var bFallback = makeBattle(ph7, {
+  boss: true, hp: 100, maxHp: 100, damageRange: [10, 10]
+});
+bFallback.hp = 40;
+stateApi.battleAction(ph7, "precise");
+ok("没有 phase2 数据的 Boss 退回通用形态",
+  bFallback.phase === 2 && bFallback.damageRange[0] === 13 && bFallback.phaseLabel === "第二阶段",
+  "label=" + bFallback.phaseLabel + " dmg=" + bFallback.damageRange.join("-"));
+
+// 存档往返：形态名与段数丢了，等于读档后偷偷把双影改成单体
+var ph8 = freshRun();
+makeBattle(ph8, {
+  enemyId: "riftWarden", boss: true, phase: 2, phaseHits: 2, phaseLabel: "双影",
+  hp: 40, maxHp: 100, damageRange: [13, 13], lastAction: "precise", prevAction: "defend"
+});
+var savedPh = storage.sanitizeRun(JSON.parse(JSON.stringify(ph8.run)));
+ok("形态名与段数能存档往返",
+  savedPh.battle.phaseLabel === "双影" && savedPh.battle.phaseHits === 2,
+  savedPh.battle.phaseLabel + "/" + savedPh.battle.phaseHits);
+ok("动作记录能存档往返（查票读档后仍然记得）",
+  savedPh.battle.lastAction === "precise" && savedPh.battle.prevAction === "defend",
+  savedPh.battle.lastAction + "/" + savedPh.battle.prevAction);
+
+var dirtyPh = JSON.parse(JSON.stringify(ph8.run));
+dirtyPh.battle.lastAction = "hackTheGame";
+dirtyPh.battle.phaseHits = 9;
+dirtyPh.battle.phaseLabel = "一个特别特别长的形态名";
+var cleanPh = storage.sanitizeRun(dirtyPh).battle;
+ok("非法动作 id 被清空、段数被夹紧、形态名被截断",
+  cleanPh.lastAction === null && cleanPh.phaseHits === 3 && cleanPh.phaseLabel.length <= 6,
+  cleanPh.lastAction + "/" + cleanPh.phaseHits + "/" + cleanPh.phaseLabel);
+
+// 表现层：形态名要画出来，双影要真的画出两个剪影
+var ph9 = freshRun();
+makeBattle(ph9, {
+  enemyId: "riftWarden", boss: true, phase: 2, phaseHits: 2, phaseLabel: "双影",
+  hp: 60, maxHp: 120, damageRange: [10, 10]
+});
+var twinRec = renderBattleTexts(ph9);
+ok("面板上写的是形态名而不是「第二阶段」",
+  twinRec.texts.indexOf("双影") >= 0 && twinRec.texts.indexOf("第二阶段") < 0,
+  JSON.stringify(twinRec.texts.slice(0, 8)));
+
+var ph10 = freshRun();
+makeBattle(ph10, {
+  enemyId: "rustStoker", boss: true, phase: 2, phaseHits: 1, phaseLabel: "过载",
+  hp: 60, maxHp: 120, damageRange: [10, 10]
+});
+// 画面里同时有主角和敌人，绝对值会随布局变；这里只比「多出来那一具剪影」
+var singleBodies = bodyScales(renderBattleTexts(ph10)).length;
+ok("双影比单段形态多画一具剪影", bodyScales(twinRec).length === singleBodies + 1,
+  bodyScales(twinRec).length + " vs " + singleBodies);
+
+var ph11 = freshRun();
+makeBattle(ph11, {
+  boss: true, phase: 2, hp: 60, maxHp: 120, damageRange: [10, 10]
+});
+ok("老存档没有形态名时退回通用文案",
+  renderBattleTexts(ph11).texts.indexOf("第二阶段") >= 0);
+
+// 窄屏 + 词缀 + 形态名三个徽标挤一行：谁都不许被裁掉、也不许盖住名字
+var narrowT = screenApiT.createScreen({ screenWidth: 320, screenHeight: 640 });
+var ph12 = freshRun();
+makeBattle(ph12, {
+  enemyId: "thePassenger", boss: true, phase: 2, phaseHits: 1, phaseLabel: "换宿主",
+  hp: 60, maxHp: 120, damageRange: [10, 10],
+  affix: "greedy", affixName: "贪婪", affixDesc: "金币翻倍，攻击更狠"
+});
+var narrowStub = stubCtx();
+uiApiT.beginFrame(narrowT, 0);
+battleModalT.render(narrowStub.ctx, narrowT, ph12, tweenApiT.createAnimator(), 1200);
+var chipPut = narrowStub.rec.textPuts.filter(function (p) { return p[0] === "换宿主"; })[0];
+ok("窄屏上形态名徽标不被裁掉",
+  !!chipPut && chipPut[1] >= 0 && chipPut[1] + 3 * 6 + 12 <= narrowT.width,
+  JSON.stringify(chipPut));
+var namePut = narrowStub.rec.textPuts.filter(function (p) { return p[0] === "测试体"; })[0];
+ok("形态名徽标不会盖住敌人名字",
+  !!namePut && !!chipPut && namePut[1] + Math.min(3, "测试体".length) * 20 <= chipPut[1],
+  JSON.stringify(namePut) + " chip=" + JSON.stringify(chipPut));
+
 /* ---------------- 汇总 ---------------- */
 console.log("\n" + "=".repeat(46));
 console.log("通过 " + PASS + " / " + (PASS + FAIL));

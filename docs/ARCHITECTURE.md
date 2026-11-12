@@ -144,6 +144,35 @@ Boss 换阶段（`checkBossPhase`）的触发写在 `dealEnemyDamage()` 里，�
 第三条约束是数据层的：**一击致死不放行**（`battle.hp <= 0` 直接返回），
 否则会出现「刚裂开就死了」的动画——血条都空了，还在播第二阶段。
 
+### 第二形态是数据，不是 if
+
+五个 Boss 的第二形态各不相同（双影 / 查票 / 过载 / 脱轨 / 换宿主），但逻辑侧
+**没有一处按敌人 id 分支**：`enemies.js` 的模板上挂一个 `phase2` 对象，
+`state.js` 用 `phase2Of(battle)` 取出来，只认字段：
+
+| 字段 | 作用 | 谁读 |
+|---|---|---|
+| `label` / `line` / `tip` | 徽标文案、崩开描述、规则说明 | `checkBossPhase` 写进 `battle.phaseLabel`；日志与徽标只读它 |
+| `hits` / `hitScale` | 一回合打几段、每段系数 | `enemyTurn` 分段结算 |
+| `extraChance` / `extraScale` | 追加一段的概率与系数 | 同上 |
+| `repeatPunish` | 重复上回合动作的加伤比例 | 同上，对比 `battle.lastAction` / `prevAction` |
+| `dmgMul` / `selfBleed` | 伤害倍率、每回合自损 | 同上 |
+| `dotOnPlayer` / `healCut` | 穿盾固定伤害、治疗削减 | 同上 / 药剂分支 |
+| `shield` / `cadence` / `dmgAdd` | 换阶段护盾、预告节奏、伤害区间加成 | 换阶段分支 / `writeTelegraph` |
+
+理由和「唯一收口」是同一条：**加第六个 Boss 不该改逻辑**。写在 `if (enemyId === "xxx")`
+里，加形态就要改五处，测试也只能逐个人肉验证。放在数据里，新增形态只要写一个对象，
+测试的「字段组合互不相同」护栏会自动覆盖它。
+
+两个副作用必须一起处理，否则读档等于改难度：
+
+- `phaseLabel` / `phaseHits` 要进存档。丢了 `phaseHits`，读档后双影退化成单体。
+- `lastAction` / `prevAction` 要白名单化。它们是「查票」的判定依据，
+  来自可被篡改的存档，不白名单化就等于让存档文件决定伤害。
+
+表现层同理：`battle.js` 只读 `battle.phaseHits > 1` 决定要不要多画一具剪影，
+读 `battle.phaseLabel` 决定徽标写什么——它不查敌人表，也不猜。
+
 ### 补间必须能拦住「所有」动画
 
 早期帧循环只检查转场那个 key：
