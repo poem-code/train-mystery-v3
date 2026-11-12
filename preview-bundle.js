@@ -2875,7 +2875,10 @@ var ENEMIES = [
       // hint 写在「打之前」：它不剧透，只让玩家在开战前多看一眼影子。
       // 剧透会把惊喜变成说明书，完全不提又会让崩开显得凭空出现——
       // 埋一个可以被忽略、也可以在事后想起来的细节，是这两者之间唯一的位置。
+      // callback 是它在半血那一下的兑现：同一幅画面的第二拍，不是复读 hint，
+      // 也不是解释机制（机制在 tip 里）。
       hint: "它站在灯下的角度不太对——影子比身体多出一层。",
+      callback: "你终于看清了——它从来都不是一个。",
       line: "它从正中裂开，第二个影子站了起来。",
       tip: "每回合两段攻击，防御架势只挡得住第一段。",
       dmgAdd: 1,
@@ -2908,6 +2911,7 @@ var ENEMIES = [
     phase2: {
       label: "查票",
       hint: "它手里捏着一沓票根，每一张都写着同一个名字。",
+      callback: "那沓票根上记的，是你每一次出手。",
       line: "它把票根翻过来，开始照着你上一回合念。",
       tip: "重复上回合的同一招，这一击伤害 +45%。",
       dmgAdd: 1,
@@ -2940,6 +2944,7 @@ var ENEMIES = [
     phase2: {
       label: "过载",
       hint: "炉温还在往上走，铁皮已经开始发红发亮。",
+      callback: "铁皮红得发亮——原来那不是灯光。",
       line: "炉门被顶开，火从它的缝里烧出来——它也烧起来了。",
       tip: "出手重 30%，但它每回合自损 5 点生命。",
       dmgAdd: 0,
@@ -3121,6 +3126,7 @@ var ENEMIES = [
     phase2: {
       label: "脱轨",
       hint: "它的手一直搭在扳道上，指节在抖。",
+      callback: "那只手一直按着扳道，现在终于扳下去了。",
       line: "它把道岔扳到底，铁轨的摩擦声失去了规律。",
       tip: "每次出手有 35% 概率再扳一次道，追加一击。",
       dmgAdd: 1,
@@ -3153,6 +3159,7 @@ var ENEMIES = [
     phase2: {
       label: "换宿主",
       hint: "它看着你，眼神像在找一个能住进去的地方。",
+      callback: "那双眼睛一直在找一个能住得进去的地方。",
       line: "它不再站在你对面——它钻了进来。",
       tip: "每回合穿盾掉 3 点，回血药剂只回一半。",
       dmgAdd: 1,
@@ -6136,9 +6143,17 @@ function render(ctx, screen, state, animator, clock) {
   var logs = battle.logs.slice(0, maxLines);
   var i;
   for (i = 0; i < logs.length; i += 1) {
+    /**
+     * 呼应句换一支颜色。
+     * 它和登场卡上的「预感」是同一句话的两头，所以用同一支暖色（#E6B4A4）——
+     * 玩家不会去记文案，但会认出「这个颜色刚才在卡片上出现过」。
+     * 判据只看首字的「」：日志里只有这一种句子会被括起来。
+     */
+    var lineColor = i === 0 ? P.ink : (P.inkSoft || P.inkDim);
+    if (logs[i].charAt(0) === "「") lineColor = "#E6B4A4";
     draw.text(ctx, logs[i], logRect.x + screen.px(8), logRect.y + screen.px(6) + i * lineH, {
       size: screen.fz(10),
-      color: i === 0 ? P.ink : P.inkSoft || P.inkDim,
+      color: lineColor,
       maxWidth: logRect.w - screen.px(16),
       alpha: 1 - i * 0.16
     });
@@ -10405,9 +10420,23 @@ function enemyTurn(state) {
     battle.phaseBreak = false;
     battle.enemyShield += p2b && typeof p2b.shield === "number" ? p2b.shield : 12;
     battle.lastEnemyDamage = 0;
-    // 日志是倒序显示的（最新在最上），所以先推「规则说明」再推「崩开描述」再推「重组」，
-    // 玩家从上往下读才是「重组 / 它裂开了 / 这套新打法是什么 / 刚才那一下命中」。
+    // 日志是倒序显示的（最新在最上），所以先推「规则说明」再推「呼应」再推「崩开」再推「重组」，
+    // 玩家从上往下读才是「重组 / 它裂开了 / 那句话对上了 / 这套新打法是什么 / 刚才那一下命中」。
     if (p2b && p2b.tip) pushBattleLog(battle, p2b.tip);
+    /**
+     * 呼应：登场卡上那句「预感」在这一刻兑现。
+     *
+     * 它是**先 push 的**，所以在倒序日志里排在「崩开描述」下面一行——
+     * 读起来是「它裂开了 / 「那句话对上了」」，事件在前、醒悟在后。
+     * 用「」括起来表示这是玩家脑子里的声音，不是战场播报；
+     * 不加引号就会读成第三段旁白，和 tip 糊成一片。
+     *
+     * 只在「当时真的看过那张卡」时才写（`introHint` 存在）：老存档、以及没有
+     * phase2 的对手都没有这句铺垫，硬凑一句通用的「你想起了什么」比不写更尴尬。
+     */
+    if (p2b && p2b.callback && battle.introHint) {
+      pushBattleLog(battle, "「" + p2b.callback + "」");
+    }
     pushBattleLog(battle, (p2b && p2b.line)
       || (battle.name + " 的外壳崩开，露出里面的第二层——它比刚才更凶了。"));
     pushBattleLog(battle, battle.name + " 停在原地重组躯壳，暂时没有还手。");
