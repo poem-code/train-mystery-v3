@@ -85,13 +85,22 @@ dirty === false →  跳过 canvas 调用，只跑 tick
 ### 形变在 draw 层做，不在业务层做
 
 `draw.figure(ctx, cx, cy, size, kind, color, variant, pose)` 的第八个参数是可选的
-`{ bob, sx, sy }`，画的时候临时做一次 `translate → scale → translate`。
+`{ bob, sx, sy, rot }`，画的时候临时做一次 `translate → rotate → scale → translate`。
 好处是四个调用面（战斗、路线图、图鉴、结局）自动共享同一套形变规则，
 不需要各自算坐标；`pose` 缺省时产生的绘制指令与旧版逐条一致。
 
 只让身体形变、影子留在地上，是这一层唯一的硬约束：
 影子跟着身体一起上下浮动，角色就不像在呼吸，像贴在屏幕上的一张纸在抖。
 所以 `figShadow()` 多接一个 `lift`，离地越高影子越小越淡。
+
+**为什么还要 `rot`**：只有 `bob/sx/sy` 时，想表达「前倾」只能整体平移，
+读起来是「挪了一步」。人的重心在脚上，身体倾出去而脚不动，才像在使劲。
+旋转绕脚底中心做，倾角再大脚也不会离地。
+
+**动作曲线必须显式要线性**。`animator.progress()` 默认套 `easeOutCubic`，
+按「前 35% 后仰、后 65% 前扑」设计的分段动作，会被压成「前 100ms 走完 70%」，
+画面上直接看不见。凡是按真实时间比例分段写的动作都要传 `linearEase`，
+缓动交给包络（`sin`），不要交给 progress。
 
 ### 预告：状态领先画面一个回合
 

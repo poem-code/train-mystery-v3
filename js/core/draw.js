@@ -775,7 +775,11 @@ var VARIANTS = {
  *   bob  —— 竖直位移（px，负数向上），呼吸时用
  *   sx   —— 横向缩放，挤压帧用（1.12 表示横向摊开）
  *   sy   —— 纵向缩放
+ *   rot  —— 绕脚底中心旋转（弧度），前倾/后仰用
  * 形变只作用于身体，影子固定在地上并随 bob 收缩，否则浮空感会反过来。
+ *
+ * 为什么需要 rot：整体平移读起来是「挪了一步」，不是「前倾」。
+ * 人的重心在脚上，身体倾出去而脚不动，才像在使劲。
  */
 function figure(ctx, cx, cy, size, kind, color, variant, pose) {
   var c = color || PALETTE.teal;
@@ -783,11 +787,13 @@ function figure(ctx, cx, cy, size, kind, color, variant, pose) {
   var bob = p.bob || 0;
   var sx = p.sx === undefined ? 1 : p.sx;
   var sy = p.sy === undefined ? 1 : p.sy;
+  var rot = p.rot || 0;
   figShadow(ctx, cx, cy, size, bob < 0 ? -bob : 0);
   ctx.save();
-  if (bob || sx !== 1 || sy !== 1) {
+  if (bob || sx !== 1 || sy !== 1 || rot !== 0) {
     // 以脚底中心为基准做形变：横向摊开会压到地面，纵向压扁不会浮起来
     ctx.translate(cx, cy + bob);
+    if (rot !== 0) ctx.rotate(rot);
     ctx.scale(sx, sy);
     ctx.translate(-cx, -cy);
   }

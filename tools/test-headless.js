@@ -1326,7 +1326,7 @@ ok("到期后 progress 归一", tnA.progress("enemyHit") === 1, String(tnA.progr
 
 // 桩 ctx：只要能记下 translate/arc 的参数就够，渲染正确性靠截图走查
 function stubCtx() {
-  var rec = { translate: [], scale: [], arc: [], texts: [], textPuts: [] };
+  var rec = { translate: [], scale: [], arc: [], rot: [], texts: [], textPuts: [] };
   var ctx = {
     save: function () {}, restore: function () {}, beginPath: function () {},
     closePath: function () {}, fill: function () {}, stroke: function () {},
@@ -1344,6 +1344,7 @@ function stubCtx() {
     ellipse: function (x, y, rx) { rec.arc.push(rx); },
     arc: function (x, y, r) { rec.arc.push(r); },
     translate: function (x, y) { rec.translate.push([x, y]); },
+    rotate: function (a) { rec.rot.push(a); },
     scale: function (x, y) { rec.scale.push([x, y]); }
   };
   return { ctx: ctx, rec: rec };
@@ -1375,6 +1376,16 @@ ok("bob 生效：身体按 bob 上移", bobbed.length === 1 && bodyScales(poseBo
 ok("形变只多两次平移（不移影子的那份）",
   poseBob.rec.translate.length === baseTranslate + 2,
   poseBob.rec.translate.length + " vs " + baseTranslate);
+
+// rot：倾角是「在用劲」的主信号。平移读起来是「挪了一步」，旋转才是「前倾」
+var poseRot = stubCtx();
+drawApiT.figure(poseRot.ctx, 100, 200, 80, "normal", "#fff", null, { rot: 0.12 });
+ok("rot 生效：绕脚底转一次",
+  poseRot.rec.rot.length === 1 && Math.abs(poseRot.rec.rot[0] - 0.12) < 1e-9,
+  JSON.stringify(poseRot.rec.rot));
+ok("rot 不额外改变平移次数", poseRot.rec.translate.length === baseTranslate + 2,
+  poseRot.rec.translate.length + " vs " + baseTranslate);
+ok("不传 rot 时不旋转", poseBase.rec.rot.length === 0, JSON.stringify(poseBase.rec.rot));
 
 // 影子：离地越高越小越淡——否则浮空会像贴纸在抖
 var shadowRadius = function (rec) {
@@ -1449,6 +1460,35 @@ ok("敌人反击触发扑咬与玩家后退",
   animT.isRunning("enemyLunge") && animT.isRunning("heroHurt"),
   "lunge=" + animT.isRunning("enemyLunge") + " hurt=" + animT.isRunning("heroHurt"));
 
+/* ---- 四种行动各有自己的出手动作 ---- */
+
+// 以前点按钮只有飘字在动，剪影纹丝不动：四个行动在视觉上完全一样
+function actKeyFor(id) {
+  animT.clear();
+  dispatch({ id: id });
+  var keys = ["heroShoot", "heroPower", "heroGuard", "heroDrink"];
+  var hit = null;
+  var ki;
+  for (ki = 0; ki < keys.length; ki += 1) {
+    if (animT.isRunning(keys[ki])) hit = keys[ki];
+  }
+  return hit;
+}
+
+makeBattle(liveStateT, { trait: "none", damageRange: [4, 4], hp: 9999, maxHp: 9999 });
+liveStateT.player.hp = 60;
+liveStateT.player.inventory.potion = 3;
+ok("精准射击 = 收肩前倾", actKeyFor("battle:precise") === "heroShoot");
+ok("强力射击 = 后仰再前扑", actKeyFor("battle:power") === "heroPower");
+ok("防御架势 = 蹲下", actKeyFor("battle:defend") === "heroGuard");
+ok("喝药 = 上浮", actKeyFor("battle:potion") === "heroDrink");
+
+// 行动没成立时不该有动作：没药还仰头，是在骗玩家
+liveStateT.player.inventory.potion = 0;
+animT.clear();
+dispatch({ id: "battle:potion" });
+ok("没药时不播喝药动作", !animT.isRunning("heroDrink"), "key=" + animT.isRunning("heroDrink"));
+
 var snapshotBefore = JSON.stringify(liveStateT.run) + JSON.stringify(liveStateT.player);
 var i2;
 for (i2 = 0; i2 < 40; i2 += 1) engineT.__step(16);
@@ -1500,6 +1540,17 @@ ok("没有预告时不画徽标也不改按钮文案",
 // 收尾：把战斗结束掉，别把状态留给后面
 dispatch({ id: "battle:giveUp" });
 liveStateT.current.modal = null;
+
+/* ---- 血量写进姿态：快死了的敌人不该还在匀速呼吸 ---- */
+
+var dp1 = freshRun();
+var bDp = makeBattle(dp1, { trait: "none", turn: 2, hp: 100, maxHp: 100, damageRange: [0, 0] });
+var dpFullScale = bodyScales(renderBattleTexts(dp1))[0];
+bDp.hp = 5;
+var dpDyingScale = bodyScales(renderBattleTexts(dp1))[0];
+ok("濒死时敌人身体被压低",
+  !!dpFullScale && !!dpDyingScale && dpDyingScale[1] < dpFullScale[1] - 0.02,
+  (dpFullScale && dpFullScale[1].toFixed(3)) + " → " + (dpDyingScale && dpDyingScale[1].toFixed(3)));
 
 /* ---------------- 汇总 ---------------- */
 console.log("\n" + "=".repeat(46));
