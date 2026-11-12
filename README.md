@@ -12,7 +12,7 @@ Canvas 全自绘，无 DOM 依赖，无第三方库，纯 ES5（`var` 到底）�
 
 ```bash
 # 1) 无头回归（不需要任何环境，Node 直接跑）
-node tools/test-headless.js          # 184 项
+node tools/test-headless.js          # 195 项
 
 # 2) 数值平衡模拟（批量跑局，统计通关率与死亡分布）
 #    第三个参数是种子：做改前/改后对比时必须给同一个，否则 ±2.5pp 的随机抖动会误导判断
@@ -68,12 +68,14 @@ AppID 与广告位怎么申请、卡在哪一步，见 [`docs/DOUYIN_SETUP.md`](
 | `preview.html?scene=route&modal=battle&enemy=ironWarden` | 指定敌人进战斗（看待机呼吸与受击帧） |
 | `preview.html?modal=battle&tele=charge` | 注入下回合预告（`charge` / `swarm` / `weave`），检查气泡排版与蓄力姿态 |
 | `preview.html?modal=enhance` / `shop` / `event` / `chest` / `camp` / `summary` | 对应弹窗 |
+| `preview.html?scene=route&modal=event&event=ashMarket` | 锁定某条随机事件看文案（随机事件刷新不稳定） |
 | `preview.html?modal=settings` / `trainUpgrade` | 设置 / 列车升级 |
 | `preview.html?modal=info&view=collection` | 本局构筑图鉴（含遗物序列进度） |
 | `preview.html?scene=route&sets=1&modal=info&view=collection` | 塞一批遗物，看序列进度 |
 | `preview.html?scene=route&sets=1&modal=chest&relic=twinShell` | 宝箱里看「本次凑齐」提示 |
 | `preview.html?modal=codex&tab=enemies` | 永久图鉴（`tab` = enemies / relics / enhancements / achievements） |
 | `preview.html?modal=codex&tab=enhancements&page=2` | 图鉴指定页 |
+| `preview.html?modal=codex&tab=enemies&page=7&seen=all` | 把所有敌人标成已遇见，走查尾部条目的说明文案 |
 | `preview.html?modal=daily` | 每日挑战 |
 | `preview.html?modal=themes&theme=ember` | 车厢主题选择（`theme` = rust / frost / ember） |
 | `preview.html?scene=route&theme=frost` | 指定车厢开一局 |
@@ -113,12 +115,12 @@ js/
     registry.js          场景与弹窗注册表
 
     data/                纯数据，禁止放函数（否则存档不可序列化）
-      enemies.js         30 个敌人模板（19 普通 / 6 精英 / 5 Boss，各带受击材质）
+      enemies.js         40 个敌人模板（28 普通 / 7 精英 / 5 Boss，各带受击材质）
       materials.js       4 种打击材质（音色 + 粒子色，纯表现）
       affixes.js         8 个精英词缀
       relics.js          26 件遗物
       enhancements.js    34 项局内强化
-      events.js          32 个随机事件 + 3 条事件链
+      events.js          40 个随机事件 + 3 条事件链
       items.js           道具与商店
       nodes.js           节点类型与每层权重
       achievements.js    12 条成就（声明式：metric + target + reward）
@@ -134,7 +136,7 @@ assets/
   audio/                 16 个音效 + 3 首 BGM（合计约 934 KB，程序合成，无版权风险）
 
 tools/
-  test-headless.js       无头回归（184 项）
+  test-headless.js       无头回归（195 项）
   sim-balance.js         批量模拟（局数/主题/种子），输出通关率与死亡分布
   gen-audio.py           程序合成音效与 BGM
   build-bundle.js        把 js/ 打成浏览器可跑的 bundle（仅本地预览用）
@@ -167,13 +169,13 @@ docs/                    架构 / 内容表 / 调参手册 / 上线清单 / 完�
 - 首页 → 列车主城 → 出发 → 路线图 → 8 层节点 + Boss → 结算
 - 节点类型：战斗、精英、事件、营地、商店、宝箱、Boss（全图保底各类至少 1 个）
 - 回合战斗：精准 / 强力 / 防御 / 药剂 / 秒杀卡 / 撤离 / 重战卡 / 激励复活
-- **30 个敌人**（19 普通 + 6 精英 + 5 Boss），**14 种行为特性**：
+- **40 个敌人**（28 普通 + 7 精英 + 5 Boss），**14 种行为特性**：
   反扑、立盾、吸能、蓄势、重甲、吸血、群袭、镜影、自爆、统御、
   **织网（缠住削弱下一击）、寄生（挂卵孵化）、狂化（半血永久加攻）、赌徒（伤害大幅浮动）**
 - **8 个精英词缀**：6 精英 × 8 词缀 = 48 种组合，全部有真实行为分支
 - **34 项局内强化**（3 选 1）：暴击流 / 盾流 / 残血流 / 先手流四条线各自能成型
-- **26 件遗物 + 4 套遗物序列**（凑齐给成型奖励，宝箱/构筑页/图鉴三处提示）、**32 个随机事件 + 3 条 3 段式事件链**（链进度存档、跳段不惩罚）
-- **永久图鉴 90 条目**（敌人 30 / 遗物 26 / 强化 34），25/50/75/100% 四档奖励
+- **26 件遗物 + 4 套遗物序列**（凑齐给成型奖励，宝箱/构筑页/图鉴三处提示）、**40 个随机事件 + 3 条 3 段式事件链**（链进度存档、跳段不惩罚）
+- **永久图鉴 100 条目**（敌人 40 / 遗物 26 / 强化 34），25/50/75/100% 四档奖励
 - **12 条成就**，声明式指标，奖励只给以太不给战力（不破坏平衡）
 - **每日挑战**：日期哈希种子 + 3 条随机限制条件 + 独立奖励 + 钱包快照还原
 - **三套车厢主题**（锈蚀 / 霜封 / 焚炉）：各自一套规则修饰符 + 背景色 + 敌人与事件的权重偏好，
@@ -190,8 +192,8 @@ docs/                    架构 / 内容表 / 调参手册 / 上线清单 / 完�
 
 | 手段 | 规模 | 结果 |
 |---|---|---|
-| `test-headless.js` | 184 项 | 184 / 184 通过 |
-| `sim-balance.js` | 三套主题 × 3 个种子 × 1000 局 | 锈蚀 48.9% / 霜封 50.9% / 焚炉 43.1%（`sim-balance.js 1000 ember 20261111` 可复现） |
+| `test-headless.js` | 195 项 | 195 / 195 通过 |
+| `sim-balance.js` | 三套主题 × 3 个种子 × 1000 局 | 锈蚀 50.1% / 霜封 50.9% / 焚炉 44.9%（`sim-balance.js 1000 ember 20261111` 可复现） |
 
 测试覆盖：整机启动、全链路自动通关（Math.random 固定种子，结果可复现）、存档往返与迁移、脏档与越界点击、
 内容数据一致性（特性有分支 / 词缀字段有分支 / 效果字段有消费点 / 事件字段合法）、

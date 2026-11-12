@@ -1041,6 +1041,208 @@ var EVENTS = [
         text: "你铲了两铲湿煤压住火头，炉边的水壶正好烧开。"
       }
     ]
+  },
+
+  /* ---------------- 第三批随机事件 ---------------- */
+  // 一局只发 2—4 个事件点，32 个事件已经够「不重样」；这批补的是**分布**：
+  // 锈蚀原本只有通用事件可抽（专属事件 0 个），而且低层数段（L1—L2）的比例偏高——
+  // 第 1 层就抽出 L4 的内容等于白抽。所以 8 条里有 5 条落在 L1—L2。
+  {
+    id: "brakeShoes",
+    themes: ["rust"],
+    title: "刹车片堆",
+    text: "检修槽里堆着几十片拆下来的刹车片，铁还在，锈也还在。车早就不跑了。",
+    weight: 10,
+    choices: [
+      {
+        label: "拆黄铜衬套",
+        hint: "稳定收益",
+        gain: { ether: 22, gold: 1 },
+        text: "你拧下三只黄铜衬套，指尖全是黑油。"
+      },
+      {
+        label: "整堆拖去换钱",
+        hint: "多半能卖，也可能划伤",
+        risk: {
+          chance: 0.6,
+          ok: { gold: 2 },
+          bad: { hp: -9 },
+          okText: "收购的人没多看一眼，直接数了两枚金币。",
+          badText: "铁片滑落，一道口子从手背一直划到手腕。"
+        }
+      }
+    ]
+  },
+  {
+    id: "lostAndFound",
+    themes: ["rust"],
+    title: "失物招领处",
+    text: "小桌上摆着十几件没人认领的东西：一只手套，一副假牙，一块还在走的表。墙上写着「逾期销毁」。",
+    weight: 9,
+    minLayer: 2,
+    choices: [
+      {
+        label: "认领自己的行李",
+        hint: "拿回道具，安心一点",
+        items: { potion: 1 },
+        gain: { sanity: 5 },
+        text: "你在最底下翻到了自己的包，药剂还在里面。"
+      },
+      {
+        label: "翻别人的",
+        hint: "钱多，掉精神",
+        gain: { ether: 26, gold: 1, sanity: -9 },
+        text: "你把能换钱的都收走了。那块表还在走，你没敢看时间。"
+      }
+    ]
+  },
+  {
+    id: "windowFrost",
+    themes: ["frost"],
+    title: "霜上的字",
+    text: "车窗的霜上有人写过字，笔画很细，像是用指甲划的：「别回头」。",
+    weight: 9,
+    minLayer: 2,
+    choices: [
+      {
+        label: "照着做，一路不回头",
+        hint: "回精神",
+        gain: { sanity: 14 },
+        text: "你盯着前方走完了整节车厢。什么都没发生——也许正因为你没回头。"
+      },
+      {
+        label: "回头看",
+        hint: "风险：也许撞见什么",
+        risk: {
+          chance: 0.55,
+          ok: { ether: 30 },
+          bad: { hp: -14, sanity: -10 },
+          okText: "身后什么都没有，只有你自己的脚印，一路排到车门。",
+          badText: "你看见了不该看的东西。它跟着你走了很长一段。"
+        }
+      }
+    ]
+  },
+  {
+    id: "coalChute",
+    themes: ["ember"],
+    title: "煤槽",
+    text: "脚下是一道运煤的斜槽，直通下一节车厢。槽壁上糊着厚厚一层煤灰。",
+    weight: 10,
+    choices: [
+      {
+        label: "直接滑下去",
+        hint: "省饱食，脏，掉精神",
+        gain: { hunger: 12, sanity: -6, hp: -4 },
+        text: "你从煤槽一路滑到底，指甲缝里三天都洗不干净。"
+      },
+      {
+        label: "踩铆钉慢慢下",
+        hint: "稳妥，顺手捡点",
+        gain: { ether: 14 },
+        text: "你踩着槽壁的铆钉一步步下去，顺手捡了几块没烧透的煤。"
+      }
+    ]
+  },
+  {
+    id: "boilerTimeclock",
+    themes: ["ember"],
+    title: "司炉打卡钟",
+    text: "墙上挂着一只打卡钟，卡片槽里还插着一张没打过的卡。钟还在走。",
+    weight: 9,
+    minLayer: 2,
+    choices: [
+      {
+        label: "打一张卡",
+        hint: "多一次强化，也可能夹到手",
+        risk: {
+          chance: 0.6,
+          ok: { action: "enhance" },
+          bad: { hp: -12 },
+          okText: "值班表认了你，供热管道让开一条路——你多了一次强化。",
+          badText: "钟咬住你的手指，抽出来时少了半截指甲。"
+        }
+      },
+      {
+        label: "把钟拆了",
+        hint: "铜和齿轮",
+        gain: { ether: 20, gold: 1, sanity: -5 },
+        text: "你拆下铜壳和齿轮，钟停了。整节车厢像是松了一口气，你却没有。"
+      }
+    ]
+  },
+  {
+    id: "ashMarket",
+    themes: ["ember"],
+    title: "灰市",
+    text: "锅炉后面的空地上摆着几个摊位，摊主都裹着灰。他们不收钱，只收「还热着的东西」。",
+    weight: 8,
+    minLayer: 3,
+    choices: [
+      {
+        label: "交出一段记忆",
+        hint: "重代价换遗物",
+        cost: { sanity: 16 },
+        action: "relic",
+        text: "你把一段记忆交出去。摊主掂了掂分量，从布下摸出一件东西递给你。"
+      },
+      {
+        label: "卖一瓶药剂",
+        hint: "换金币",
+        items: { potion: -1 },
+        gain: { gold: 3, ether: 10 },
+        text: "摊主收下药剂，把三枚金币压进你掌心，手心还带着煤灰的温度。"
+      }
+    ]
+  },
+  {
+    id: "frozenSwitch",
+    themes: ["frost"],
+    title: "冻死的道岔",
+    text: "道岔被冻死了，扳手就插在上面。扳过去能抄近路，扳不动就得绕。",
+    weight: 8,
+    minLayer: 4,
+    choices: [
+      {
+        label: "硬扳",
+        hint: "省饱食，可能受伤",
+        risk: {
+          chance: 0.6,
+          ok: { hunger: 14, ether: 16 },
+          bad: { hp: -16, hunger: 6 },
+          okText: "冰壳裂开，道岔咔的一声归位，你抄了近路。",
+          badText: "扳手弹回来砸在你肋上。你还是绕了远路。"
+        }
+      },
+      {
+        label: "绕过去",
+        hint: "稳，掉饱食",
+        gain: { hunger: -10, sanity: 4 },
+        text: "你沿着车厢外侧绕行，风把手指吹得没了知觉。"
+      }
+    ]
+  },
+  {
+    id: "ownCarriage",
+    title: "你原来的车厢",
+    text: "门牌号正是你买票时的那一节。门没锁，行李还摆在你离开时的位置。",
+    weight: 7,
+    minLayer: 5,
+    choices: [
+      {
+        label: "进去坐一会儿",
+        hint: "回精神与饱食",
+        gain: { sanity: 20, hunger: 8 },
+        text: "你在自己的位置上坐了很久。窗外还是那片雾，但你没那么怕了。"
+      },
+      {
+        label: "翻自己的行李",
+        hint: "遗物，掉精神",
+        cost: { sanity: 10 },
+        action: "relic",
+        text: "包底压着一件你完全不记得带出门的东西。你把它收进怀里，也没敢细想。"
+      }
+    ]
   }
 ];
 

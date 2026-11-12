@@ -475,6 +475,163 @@ var ENEMIES = [
     reward: { ether: 104, gold: 5 },
     layerMin: 99,
     intro: "Boss：从第一站就在车上，一直在等一个愿意让它住下的人。"
+  },
+
+  /* ---------------- 普通 · 第三批 ---------------- */
+  // 这一批的重点不是「更多」，而是「更早」：低层数池子里原本只有 4 只普通怪，
+  // 一局前十层会遇到三遍同一个。新增里 4 只 layerMin ≤ 2，把早期重复率压下去。
+  // 另外锈蚀主题原本一只专属敌人都没有（全靠无标签通用怪），这批补了 4 只。
+  {
+    id: "couplerHusk",
+    material: "metal",
+    themes: ["rust"],
+    name: "车钩空壳",
+    kind: "normal",
+    trait: "armored",
+    figure: "normal",
+    color: "#B08A62",
+    hpRange: [36, 44],
+    damageRange: [7, 11],
+    reward: { ether: 22, gold: 1 },
+    layerMin: 1,
+    intro: "焊了三层铁皮，每次受击少掉 3 点伤害。"
+  },
+  {
+    id: "lamplessPorter",
+    material: "cloth",
+    themes: ["rust"],
+    name: "无灯的脚夫",
+    kind: "normal",
+    trait: "wisp",
+    figure: "normal",
+    color: "#7E8B96",
+    hpRange: [28, 34],
+    damageRange: [6, 10],
+    reward: { ether: 21, gold: 0 },
+    layerMin: 1,
+    intro: "提着没点亮的灯，奇数回合吸收残光恢复生命。"
+  },
+  {
+    id: "sootBeggar",
+    material: "flesh",
+    themes: ["rust"],
+    name: "煤灰乞者",
+    kind: "normal",
+    trait: "vampire",
+    figure: "normal",
+    color: "#8C6B5F",
+    hpRange: [30, 38],
+    damageRange: [8, 13],
+    reward: { ether: 23, gold: 0 },
+    layerMin: 2,
+    intro: "它打出的伤害有四成会变成自己的生命。"
+  },
+  {
+    id: "frostLatch",
+    material: "metal",
+    themes: ["frost"],
+    name: "冻锁构体",
+    kind: "normal",
+    trait: "idol",
+    figure: "normal",
+    color: "#8FB2C4",
+    hpRange: [40, 48],
+    damageRange: [6, 10],
+    reward: { ether: 23, gold: 1 },
+    layerMin: 2,
+    intro: "每 3 回合把门闩焊死，获得 10 点护盾。"
+  },
+  {
+    id: "shiverChoir",
+    material: "cloth",
+    themes: ["frost"],
+    name: "战栗唱诗班",
+    kind: "normal",
+    trait: "swarm",
+    figure: "normal",
+    color: "#9FB6CE",
+    hpRange: [26, 32],
+    damageRange: [6, 10],
+    reward: { ether: 24, gold: 0 },
+    layerMin: 3,
+    intro: "第 3 回合齐声尖啸，一回合连击两次。"
+  },
+  {
+    id: "emberBellows",
+    material: "void",
+    themes: ["ember"],
+    name: "鼓风余烬",
+    kind: "normal",
+    trait: "bomber",
+    figure: "normal",
+    color: "#C87A5A",
+    hpRange: [22, 28],
+    damageRange: [10, 15],
+    reward: { ether: 25, gold: 0 },
+    layerMin: 3,
+    intro: "血很薄，但崩解时会炸你 10 点——不会致死。"
+  },
+  {
+    id: "railSpider",
+    material: "cloth",
+    themes: ["rust"],
+    name: "轨枕蛛",
+    kind: "normal",
+    trait: "weaver",
+    figure: "normal",
+    color: "#A08672",
+    hpRange: [34, 42],
+    damageRange: [7, 12],
+    reward: { ether: 25, gold: 0 },
+    layerMin: 4,
+    intro: "每 3 回合吐丝，你的下一击会被拖慢。"
+  },
+  {
+    id: "glacierTick",
+    material: "flesh",
+    themes: ["frost"],
+    name: "霜蛰",
+    kind: "normal",
+    trait: "assassin",
+    figure: "normal",
+    color: "#7FA6A0",
+    hpRange: [32, 40],
+    damageRange: [10, 15],
+    reward: { ether: 26, gold: 0 },
+    layerMin: 5,
+    intro: "会蓄势加重下一击，也有机会偏开你的强力射击。"
+  },
+  {
+    id: "cinderMason",
+    material: "metal",
+    themes: ["ember"],
+    name: "焦砖匠",
+    kind: "normal",
+    trait: "enrage",
+    figure: "normal",
+    color: "#A9705B",
+    hpRange: [42, 50],
+    damageRange: [8, 12],
+    reward: { ether: 26, gold: 1 },
+    layerMin: 5,
+    intro: "半血之后攻势骤然变猛，伤害提升 45%。"
+  },
+
+  /* ---------------- 精英 · 第三批 ---------------- */
+  {
+    id: "doubleHeader",
+    material: "metal",
+    themes: ["rust"],
+    name: "双头车首",
+    kind: "elite",
+    trait: "gambler",
+    figure: "elite",
+    color: "#C0A16A",
+    hp: [88, 98],
+    damageRange: [9, 16],
+    reward: { ether: 80, gold: 3 },
+    layerMin: 6,
+    intro: "精英：两个车头朝相反方向使劲，每一击的轻重都在 50%—170% 之间赌一把。"
   }
 ];
 

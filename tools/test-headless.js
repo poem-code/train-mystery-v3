@@ -581,6 +581,50 @@ stateApi.checkCodexReward(stTier);
 ok("图鉴进度跨档发奖励", stTier.player.ether > etherBeforeTier && stTier.progress.codex.tier >= 1,
   "tier=" + stTier.progress.codex.tier);
 
+// 窄屏越界用「命中区坐标」judge，不用截图：headless 截图在 dpr 缩放下会裁边，
+// 看着像越界其实没有（反向也会骗人）。控件矩形是布局的真相。
+var codexModalT = require("../js/game/modals/codex");
+var screenApiN = require("../js/core/screen");
+var uiApiN = require("../js/core/ui");
+function codexOverflow(w, h) {
+  var scr = screenApiN.createScreen({
+    screenWidth: w, screenHeight: h, windowWidth: w, windowHeight: h,
+    pixelRatio: 2, safeArea: { top: Math.round(h * 0.055), left: 0, right: w, bottom: h }
+  });
+  var st = stateApi.createDefaultState(Date.now());
+  var ei2;
+  for (ei2 = 0; ei2 < enemiesApi2.ENEMIES.length; ei2 += 1) {
+    st.progress.codex.enemies[enemiesApi2.ENEMIES[ei2].id] = { seen: 1, defeats: 1 };
+  }
+  uiApiN.beginFrame(scr, 0);
+  codexModalT.render(stubCtx().ctx, scr, st);
+  return uiApiN.getHits().filter(function (hit) {
+    var r = hit.rect;
+    return r.x < -0.5 || r.y < -0.5 || r.x + r.w > w + 0.5 || r.y + r.h > h + 0.5;
+  }).map(function (hit) { return hit.id; });
+}
+var codexNarrow375 = codexOverflow(375, 667);
+var codexNarrow320 = codexOverflow(320, 700);
+ok("图鉴控件在 375 宽屏内", codexNarrow375.length === 0, codexNarrow375.join(","));
+ok("图鉴控件在 320 窄屏内", codexNarrow320.length === 0, codexNarrow320.join(","));
+
+// 负 items 是「交出去的道具」：存货不够必须选不了，够就得真扣掉。
+// 之前只有 2 条事件用这个字段，新增的「灰市」是第三条——顺手钉住语义。
+var stGive = stateApi.createDefaultState(Date.now());
+stateApi.startRun(stGive, Date.now());
+stGive.run.eventId = "ashMarket";
+stGive.player.inventory.potion = 0;
+var ashEvent = require("../js/game/data/events").getById("ashMarket");
+var sellChoice = ashEvent.choices[1];
+ok("没有药剂时「卖一瓶药剂」不可选", stateApi.canChooseEventOption(stGive, sellChoice) === false);
+stGive.player.inventory.potion = 1;
+ok("有药剂时「卖一瓶药剂」可选", stateApi.canChooseEventOption(stGive, sellChoice) === true);
+var goldBefore = stGive.player.gold;
+stateApi.chooseEventOption(stGive, 1);
+ok("交付道具扣除存货并结算收益",
+  stGive.player.inventory.potion === 0 && stGive.player.gold === goldBefore + 3,
+  "potion=" + stGive.player.inventory.potion + " gold=" + stGive.player.gold);
+
 var stAch = stateApi.createDefaultState(Date.now());
 stAch.progress.bossClears = 1;
 var etherBeforeAch = stAch.player.ether;
@@ -683,15 +727,15 @@ section("内容扩充");
 var normalCount = enemiesApi.byKind("normal").length;
 var eliteCount = enemiesApi.byKind("elite").length;
 var bossCount = enemiesApi.byKind("boss").length;
-ok("敌人 30 个（19 普通 / 6 精英 / 5 Boss）",
-  normalCount === 19 && eliteCount === 6 && bossCount === 5,
+ok("敌人 40 个（28 普通 / 7 精英 / 5 Boss）",
+  normalCount === 28 && eliteCount === 7 && bossCount === 5,
   normalCount + "/" + eliteCount + "/" + bossCount);
 ok("强化 34 项", enhApi.ENHANCEMENTS.length === 34, "实际 " + enhApi.ENHANCEMENTS.length);
 ok("遗物 26 件", relicsApi.RELICS.length === 26, "实际 " + relicsApi.RELICS.length);
 
 var standaloneEvents = eventsApi.EVENTS.filter(function (e) { return !e.chain; });
 var chainEvents = eventsApi.EVENTS.filter(function (e) { return !!e.chain; });
-ok("独立事件 32 个", standaloneEvents.length === 32, "实际 " + standaloneEvents.length);
+ok("独立事件 40 个", standaloneEvents.length === 40, "实际 " + standaloneEvents.length);
 ok("事件链 3 条共 9 段", Object.keys(eventsApi.CHAINS).length === 3 && chainEvents.length === 9,
   chainEvents.length + " 段");
 
@@ -704,6 +748,69 @@ while (rollProbe < 120) {
   rollProbe += 1;
 }
 ok("随机池里没有链事件", !chainInPool);
+
+section("内容分布护栏");
+
+// 早期池子太薄，一局前十层会把同一只怪遇见三遍。
+// 玩家抱怨的「内容少」，通常是「重复得太早」，不是「总数不够」。
+var earlyPool1 = enemiesApi.poolFor("normal", 1);
+var earlyPool2 = enemiesApi.poolFor("normal", 2);
+ok("第 1 层普通怪池 ≥ 6 只", earlyPool1.length >= 6, "实际 " + earlyPool1.length);
+ok("第 2 层普通怪池 ≥ 11 只", earlyPool2.length >= 11, "实际 " + earlyPool2.length);
+
+// 主题专属：某套车厢一只专属怪、一条专属事件都没有，主题就只剩「换了个背景色」
+var themesApiD = require("../js/game/data/themes");
+var themeIdsAll = themesApiD.ids();
+var themeEnemyCount = {};
+var themeEventCount = {};
+themeIdsAll.forEach(function (tid) {
+  themeEnemyCount[tid] = 0;
+  themeEventCount[tid] = 0;
+});
+enemiesApi.ENEMIES.forEach(function (enemy) {
+  (enemy.themes || []).forEach(function (tid) {
+    if (themeEnemyCount[tid] !== undefined) themeEnemyCount[tid] += 1;
+  });
+});
+eventsApi.EVENTS.forEach(function (event) {
+  (event.themes || []).forEach(function (tid) {
+    if (themeEventCount[tid] !== undefined) themeEventCount[tid] += 1;
+  });
+});
+ok("三套主题各有 ≥3 只专属敌人",
+  themeIdsAll.every(function (tid) { return themeEnemyCount[tid] >= 3; }),
+  JSON.stringify(themeEnemyCount));
+ok("三套主题各有 ≥2 条专属事件",
+  themeIdsAll.every(function (tid) { return themeEventCount[tid] >= 2; }),
+  JSON.stringify(themeEventCount));
+
+// 数值夹紧：内容扩充最容易出的事故是「200 血的普通怪」或「30 伤的精英」，
+// 那不是难，是错位——玩家会以为游戏算错了。这里只卡区间，不做平衡计算。
+var STAT_BANDS = {
+  normal: { hp: [22, 52], dmg: [5, 17] },
+  elite: { hp: [60, 105], dmg: [8, 20] },
+  boss: { hp: [100, 140], dmg: [10, 22] }
+};
+var statBad = [];
+var idSeen = {};
+var idDup = [];
+enemiesApi.ENEMIES.forEach(function (enemy) {
+  if (idSeen[enemy.id]) idDup.push(enemy.id);
+  idSeen[enemy.id] = true;
+  var band = STAT_BANDS[enemy.kind];
+  if (!band) { statBad.push(enemy.id + ":未知 kind"); return; }
+  var hpRange = enemy.hp || enemy.hpRange || [];
+  if (hpRange.length !== 2 || hpRange[0] < band.hp[0] || hpRange[1] > band.hp[1]) {
+    statBad.push(enemy.id + ":hp " + hpRange.join("-"));
+  }
+  var dr = enemy.damageRange || [];
+  if (dr.length !== 2 || dr[0] < band.dmg[0] || dr[1] > band.dmg[1] || dr[0] > dr[1]) {
+    statBad.push(enemy.id + ":dmg " + dr.join("-"));
+  }
+  if (!enemy.intro) statBad.push(enemy.id + ":缺 intro");
+});
+ok("敌人 id 不重复", idDup.length === 0, idDup.join(","));
+ok("敌人数值都落在所属档位的区间内", statBad.length === 0, statBad.join(","));
 
 section("新特性行为");
 
@@ -1191,7 +1298,7 @@ enemiesApiT.ENEMIES.forEach(function (enemy) {
   if (!/^#[0-9A-Fa-f]{6}$/.test(spark)) sparkBad.push(enemy.id);
 });
 
-ok("30 只敌人都声明了合法材质", matMissing.length === 0, matMissing.join(","));
+ok("40 只敌人都声明了合法材质", matMissing.length === 0, matMissing.join(","));
 ok("四种材质都有敌人", matIds.every(function (id) { return matCount[id] > 0; }),
   JSON.stringify(matCount));
 // 每种材质至少 3 只：只有一个敌人的材质等于没做，玩家一辈子听不到第二遍

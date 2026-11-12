@@ -46,6 +46,10 @@
     },
     createCanvas: function () {
       var canvas = document.createElement("canvas");
+      // CSS 尺寸必须钉成逻辑宽高。否则 canvas.width 被渲染器设成 dpr 倍（780），
+      // 浏览器就把 780 当 CSS 宽度，headless 截图只截得到画面左半边。
+      canvas.style.width = W + "px";
+      canvas.style.height = H + "px";
       document.body.appendChild(canvas);
       return canvas;
     },
@@ -277,7 +281,19 @@
     state.current.modal = "shop";
   } else if (modal === "event") {
     state.current.modal = null;
-    load("js/game/state.js").openEvent(state);
+    // event=<id> 直接锁定某条事件：随机事件无法靠刷新稳定复查同一条文案，
+    // 内容一多，截图走查就成了碰运气
+    var wantEventId = q.get("event");
+    var fixedEvent = wantEventId ? load("js/game/data/events.js").getById(wantEventId) : null;
+    if (fixedEvent) {
+      state.run.eventId = fixedEvent.id;
+      state.run.eventResult = null;
+      state.run.eventChoiceIndex = -1;
+      state.run.eventChain = null;
+      state.current.modal = "event";
+    } else {
+      load("js/game/state.js").openEvent(state);
+    }
   } else if (modal === "summary") {
     state.run.completed = true;
     state.run.active = false;
@@ -305,7 +321,10 @@
     var relApi = load("js/game/data/relics.js");
     var ehApi = load("js/game/data/enhancements.js");
     var ii;
-    for (ii = 0; ii < 9; ii += 1) {
+    // seen=all 把全部敌人标成已遇见：图鉴后几页（新增内容都在尾部）默认全是「？？？」，
+    // 不复写这些条目就没法走查新增敌人的说明文案
+    var seenAll = q.get("seen") === "all";
+    for (ii = 0; ii < (seenAll ? enApi.ENEMIES.length : 9); ii += 1) {
       state.progress.codex.enemies[enApi.ENEMIES[ii].id] = { seen: 1, defeats: ii % 4 };
     }
     for (ii = 0; ii < 5; ii += 1) {
