@@ -2872,6 +2872,10 @@ var ENEMIES = [
      */
     phase2: {
       label: "双影",
+      // hint 写在「打之前」：它不剧透，只让玩家在开战前多看一眼影子。
+      // 剧透会把惊喜变成说明书，完全不提又会让崩开显得凭空出现——
+      // 埋一个可以被忽略、也可以在事后想起来的细节，是这两者之间唯一的位置。
+      hint: "它站在灯下的角度不太对——影子比身体多出一层。",
       line: "它从正中裂开，第二个影子站了起来。",
       tip: "每回合两段攻击，防御架势只挡得住第一段。",
       dmgAdd: 1,
@@ -2903,6 +2907,7 @@ var ENEMIES = [
      */
     phase2: {
       label: "查票",
+      hint: "它手里捏着一沓票根，每一张都写着同一个名字。",
       line: "它把票根翻过来，开始照着你上一回合念。",
       tip: "重复上回合的同一招，这一击伤害 +45%。",
       dmgAdd: 1,
@@ -2934,6 +2939,7 @@ var ENEMIES = [
      */
     phase2: {
       label: "过载",
+      hint: "炉温还在往上走，铁皮已经开始发红发亮。",
       line: "炉门被顶开，火从它的缝里烧出来——它也烧起来了。",
       tip: "出手重 30%，但它每回合自损 5 点生命。",
       dmgAdd: 0,
@@ -3114,6 +3120,7 @@ var ENEMIES = [
      */
     phase2: {
       label: "脱轨",
+      hint: "它的手一直搭在扳道上，指节在抖。",
       line: "它把道岔扳到底，铁轨的摩擦声失去了规律。",
       tip: "每次出手有 35% 概率再扳一次道，追加一击。",
       dmgAdd: 1,
@@ -3145,6 +3152,7 @@ var ENEMIES = [
      */
     phase2: {
       label: "换宿主",
+      hint: "它看着你，眼神像在找一个能住进去的地方。",
       line: "它不再站在你对面——它钻了进来。",
       tip: "每回合穿盾掉 3 点，回血药剂只回一半。",
       dmgAdd: 1,
@@ -5812,6 +5820,17 @@ function render(ctx, screen, state, animator, clock) {
   var innerW = r.w - pad * 2;
   var cursor = r.y + pad;
 
+  /**
+   * Boss 登场卡：整块面板先换成一张「这是谁」，画完直接返回。
+   *
+   * 不做成叠在战斗界面上的浮层：叠层会让玩家以为可以边看卡边点按钮，
+   * 而此刻那四个行动按钮都还没有意义——牌还没发，先问怎么出是荒谬的。
+   */
+  if (battle.introOpen && !battle.over && state.player.hp > 0) {
+    renderBossIntro(ctx, screen, r, battle, clock);
+    return;
+  }
+
   // 类型 + 材质 + 回合
   // 材质放在这一行而不是另起一行：它是「说明这刀打上去是什么手感」的注脚，
   // 不该占用垂直空间（战斗面板的每一像素都要留给日志）
@@ -6217,6 +6236,132 @@ function render(ctx, screen, state, animator, clock) {
   });
 }
 
+/**
+ * Boss 登场卡。
+ *
+ * 三件事按顺序发生：先看到「有多大」（剪影），再看到「是谁」（名字），
+ * 最后读到「它怎么打」和一句没头没尾的预感。顺序不能反——
+ * 先把规则摆在最上面，玩家会把它当说明书扫一眼就点掉。
+ *
+ * 预感那一行是这张卡真正的价值：它不解释任何机制，只在开战前留下一句话。
+ * 半血崩开时，这句话会突然对上号——「原来它刚才说的影子是这个」。
+ * 剧透会把惊喜变成说明书，完全不提又会让第二形态显得凭空出现。
+ */
+function renderBossIntro(ctx, screen, r, battle, clock) {
+  var breatheT = (typeof clock === "number" ? clock : 0) / 1000;
+  var pad = screen.px(18);
+  var left = r.x + pad;
+  var innerW = r.w - pad * 2;
+  var cx = r.x + r.w / 2;
+  // 按钮位置先算出来：下面的「预感」块要贴着它排，先把底边钉住，
+  // 剩下多少空间，中间的排版才知道自己有多少余量
+  var btnH = screen.px(44);
+  var btnTop = r.y + r.h - pad - btnH;
+
+  draw.text(ctx, "关底首领 · " + materialsApi.nameOf(battle.material), left, r.y + pad, {
+    size: screen.fz(10),
+    bold: true,
+    color: "#FF8B7A"
+  });
+
+  // 剪影 + 背光。背光用几圈低透明度实心圆叠出来，不用渐变：
+  // 低端机上 canvas 渐变每帧重建一次就有可见的卡顿，而这里每一帧都在动。
+  //
+  // 位置按 figure 的真实比例算：传给它的 cy 是「躯干中心」，不是脚底——
+  // 双角顶到 cy - 0.66×size，躯干底在 cy + 0.52×size。不按这个算，
+  // 名字就会写进它的胸口里（第一版截图里就是这样）。
+  var figSize = screen.px(164);
+  var bodyTop = r.y + pad + screen.px(24);
+  var figY = bodyTop + figSize * 0.66;
+  var bodyBottom = figY + figSize * 0.52;
+  var i;
+  for (i = 3; i >= 1; i -= 1) {
+    ctx.save();
+    ctx.globalAlpha = 0.05 * i;
+    ctx.fillStyle = "#D8574A";
+    ctx.beginPath();
+    ctx.arc(cx, figY - figSize * 0.08, figSize * (0.34 + 0.16 * i), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  // 呼吸比战斗里慢一档：这里是「它还没动」，不是「它要动了」
+  var breath = Math.sin(breatheT * Math.PI * 2 / 3.6);
+  draw.figure(ctx, cx, figY, figSize, battle.figure, battle.color, battle.trait, {
+    bob: -screen.px(2.6) * breath,
+    sx: 1 + 0.012 * breath,
+    sy: 1 - 0.010 * breath
+  });
+
+  var nameY = bodyBottom + screen.px(24);
+  draw.text(ctx, battle.name, cx, nameY, {
+    size: screen.fz(26),
+    bold: true,
+    align: "center",
+    color: P.ink,
+    maxWidth: innerW
+  });
+
+  // 血量与每击：这两条是唯一影响「要不要现在交药」的数字，
+  // 放在卡上比放在战斗面板里更有用——玩家在读卡的这几秒才真的在想这件事
+  draw.text(ctx,
+    "生命 " + battle.maxHp + "　·　每击 " + battle.damageRange[0] + "—" + battle.damageRange[1],
+    cx, nameY + screen.px(38), {
+      size: screen.fz(10),
+      align: "center",
+      color: P.inkFaint
+    });
+
+  // intro 原文以「Boss：」开头，那是日志里的写法；卡上已经有「关底首领」，
+  // 再念一遍就成了「关底首领 / Boss：」的重复
+  var introText = String(battle.intro || "").replace(/^Boss：/, "");
+  var introY = nameY + screen.px(66);
+  var introUsed = draw.text(ctx, introText, cx, introY, {
+    size: screen.fz(11),
+    align: "center",
+    color: P.inkDim,
+    wrap: innerW,
+    lineHeight: screen.px(17)
+  });
+
+  if (battle.introHint) {
+    // 预感块贴底，不贴着上一段：它是这张卡最后一句、也是唯一真需要读进去的一句，
+    // 跟规则文字挤在一起就变成了脚注。贴在按钮上方，中间那片空才读成「留白」，
+    // 而不是「有一块内容加载失败」。上限兜底：极窄屏上两块仍不许叠。
+    var hy = Math.max(introY + introUsed + screen.px(16), btnTop - screen.px(112));
+    draw.fillRR(ctx, { x: left, y: hy, w: innerW, h: 1 }, "rgba(255,138,106,0.26)", 0);
+    draw.text(ctx, "预感", left, hy + screen.px(10), {
+      size: screen.fz(9),
+      bold: true,
+      color: "#F08A6A"
+    });
+    draw.text(ctx, battle.introHint, left, hy + screen.px(26), {
+      size: screen.fz(11),
+      color: "#E6B4A4",
+      wrap: innerW,
+      lineHeight: screen.px(17)
+    });
+  }
+
+  var pulse = 0.55 + 0.45 * Math.sin(breatheT * Math.PI * 2 / 1.6);
+  draw.text(ctx, "轻触任意处继续", cx, btnTop - screen.px(22), {
+    size: screen.fz(9),
+    align: "center",
+    color: P.inkFaint,
+    alpha: 0.35 + 0.45 * pulse
+  });
+
+  // 整块面板先注册点击，按钮后画：后画的在栈顶，按钮才有按压反馈。
+  // 两个 id 相同，所以点在哪儿都是同一件事——「我看完了」。
+  ui.pushHit({ id: "battle:intro", rect: r, kind: "card" });
+  ui.button(ctx, {
+    id: "battle:intro",
+    rect: { x: left, y: btnTop, w: innerW, h: btnH },
+    label: "迎战",
+    style: "primary",
+    size: screen.fz(15)
+  });
+}
+
 function renderDeath(ctx, screen, state, r, top) {
   var pad = screen.px(14);
   var left = r.x + pad;
@@ -6346,6 +6491,21 @@ function onAction(action, state, app) {
   if (id.indexOf("battle:") !== 0) return false;
   var command = id.slice(7);
   var fx = app.fx ? app.fx() : null;
+
+  /**
+   * 登场卡还开着：任何战斗动作都先当成「关掉卡片」。
+   *
+   * 卡上没画按钮，但手指可能落在旧位置（甚至就是上一场战斗「精准射击」那儿）。
+   * 若把这一下当行动处理，玩家只是在读字就被白打一回合——这一击和「读卡」毫无关系。
+   */
+  if (command === "intro"
+    || (state.run && state.run.battle && state.run.battle.introOpen)) {
+    if (stateApi.dismissBattleIntro(state)) {
+      if (app.sound) app.sound("tap", 0.6);
+      app.commit();
+    }
+    return true;
+  }
 
   if (command === "info") {
     app.openInfo("enemy");
@@ -10015,6 +10175,16 @@ function startBattle(state, kind) {
     strikeUsed: false,
     lastCrit: false,
     intro: template.intro,
+    /**
+     * Boss 登场卡。
+     *
+     * 只有 Boss 才停这一下：普通战斗每局要打十几次，每次都插一屏就是纯摩擦；
+     * Boss 一局只有一次，停下来的成本可以忽略，换来的是「这一场不一样」的仪式感。
+     * 卡片上还会带一句 phase2.hint——不提任何机制，只是把第二形态的种子提前埋下，
+     * 让半血崩开那一刻变成「原来刚才那句话是这个意思」。
+     */
+    introOpen: template.kind === "boss",
+    introHint: template.phase2 && template.phase2.hint ? template.phase2.hint : null,
     hp: hp,
     maxHp: hp,
     damageRange: template.damageRange.slice(),
@@ -10046,6 +10216,20 @@ function startBattle(state, kind) {
   };
   state.current.modal = "battle";
   return run.battle;
+}
+
+/**
+ * 关掉 Boss 登场卡。
+ *
+ * 它刻意不是一次「战斗行动」：不动回合、不进敌方回合、不掉血。
+ * 如果做成行动，玩家在读卡时手抖一下就得白挨一击，而这一击和「读卡」毫无关系。
+ * 返回是否真的关掉了一张开着的卡，方便调用方决定要不要播音效。
+ */
+function dismissBattleIntro(state) {
+  var battle = state.run && state.run.battle;
+  if (!battle || !battle.introOpen) return false;
+  battle.introOpen = false;
+  return true;
 }
 
 function pushBattleLog(battle, text) {
@@ -11199,6 +11383,7 @@ module.exports = {
   travelTo: travelTo,
   // 战斗
   startBattle: startBattle,
+  dismissBattleIntro: dismissBattleIntro,
   battleAction: battleAction,
   enemyTurn: enemyTurn,
   calcPlayerDamage: calcPlayerDamage,
@@ -11585,6 +11770,10 @@ function sanitizeBattle(raw) {
     strikeUsed: raw.strikeUsed === true,
     lastCrit: raw.lastCrit === true,
     intro: typeof raw.intro === "string" ? raw.intro.slice(0, 80) : "",
+    // 登场卡开着时存档（比如切后台），读回来还得是开着的——否则玩家会看到
+    // 一张没有标题、没有「迎战」按钮的战斗面板，不知道自己在等什么
+    introOpen: raw.introOpen === true,
+    introHint: typeof raw.introHint === "string" ? raw.introHint.slice(0, 60) : null,
     hp: toInt(raw.hp, 0, maxHp, maxHp),
     maxHp: maxHp,
     damageRange: Array.isArray(raw.damageRange) && raw.damageRange.length === 2
