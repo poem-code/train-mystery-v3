@@ -807,7 +807,11 @@ var VARIANTS = {
  *   bob  —— 竖直位移（px，负数向上），呼吸时用
  *   sx   —— 横向缩放，挤压帧用（1.12 表示横向摊开）
  *   sy   —— 纵向缩放
+ *   rot  —— 绕脚底中心旋转（弧度），前倾/后仰用
  * 形变只作用于身体，影子固定在地上并随 bob 收缩，否则浮空感会反过来。
+ *
+ * 为什么需要 rot：整体平移读起来是「挪了一步」，不是「前倾」。
+ * 人的重心在脚上，身体倾出去而脚不动，才像在使劲。
  */
 function figure(ctx, cx, cy, size, kind, color, variant, pose) {
   var c = color || PALETTE.teal;
@@ -815,11 +819,13 @@ function figure(ctx, cx, cy, size, kind, color, variant, pose) {
   var bob = p.bob || 0;
   var sx = p.sx === undefined ? 1 : p.sx;
   var sy = p.sy === undefined ? 1 : p.sy;
+  var rot = p.rot || 0;
   figShadow(ctx, cx, cy, size, bob < 0 ? -bob : 0);
   ctx.save();
-  if (bob || sx !== 1 || sy !== 1) {
+  if (bob || sx !== 1 || sy !== 1 || rot !== 0) {
     // 以脚底中心为基准做形变：横向摊开会压到地面，纵向压扁不会浮起来
     ctx.translate(cx, cy + bob);
+    if (rot !== 0) ctx.rotate(rot);
     ctx.scale(sx, sy);
     ctx.translate(-cx, -cy);
   }
@@ -5296,6 +5302,14 @@ var materialsApi = require("../data/materials");
 var P = draw.PALETTE;
 
 /**
+ * 恒等缓动。
+ * animator.progress 默认套 easeOutCubic，出手动作是按「真实时间比例」分段的
+ * （强力射击前 35% 后仰、后 65% 前扑），用默认缓动会把后仰压成几十毫秒，
+ * 画面上直接消失。这里显式要线性，包络自己用 sin 做。
+ */
+function linearEase(t) { return t; }
+
+/**
  * 最近一次渲染的坐标缓存。
  * onAction 拿不到 screen，特效需要知道「敌人在哪」才能把飘字打对位置，
  * 所以由 render 每帧写入，onAction 读取。屏幕尺寸变化时 render 会立刻刷新。
@@ -5420,10 +5434,26 @@ function render(ctx, screen, state, animator, clock) {
    * 待机呼吸：相位完全由 clock 推出，界面不存任何动画状态。
    * 敌人与玩家相位错开约 0.6 拍——同频起伏会让两个剪影看起来像连在一起。
    * 幅度只有 2px 左右：这是「活的」暗示，不是蹦迪，超过 4px 就会显得滑稽。
+   *
+   * 血量会改呼吸：残血时呼吸变快变深（喘），濒死再叠一层高频颤抖。
+   * 「快死了」因此写在身体上，而不是只写在血条长度上——血条只能告诉你还剩多少，
+   * 剪影才能告诉你「它快撑不住了」。
    */
   var breatheT = (typeof clock === "number" ? clock : 0) / 1000;
-  var enemyBreath = Math.sin(breatheT * Math.PI * 2 / 2.6);
-  var heroBreath = Math.sin(breatheT * Math.PI * 2 / 2.6 + Math.PI * 0.6);
+  var enemyHpRatio = Math.max(0, Math.min(1, battle.hp / (battle.maxHp || 1)));
+  var heroHpRatio = Math.max(0, Math.min(1, state.player.hp / (state.player.maxHp || 1)));
+  var enemyPanting = enemyHpRatio < 0.32 ? 1 : 0;
+  var enemyDying = enemyHpRatio < 0.12 ? 1 : 0;
+  var heroPanting = heroHpRatio < 0.32 ? 1 : 0;
+
+  // 喘息 = 周期缩短 + 幅度加大；两者都只改节奏，不改任何玩法数值
+  var enemyBreath = Math.sin(breatheT * Math.PI * 2 / (2.6 / (1 + 0.7 * enemyPanting)));
+  var heroBreath = Math.sin(breatheT * Math.PI * 2 / (2.6 / (1 + 0.7 * heroPanting)) + Math.PI * 0.6);
+  var enemyAmp = 2.2 * (1 + 0.55 * enemyPanting);
+  var heroAmp = 1.6 * (1 + 0.55 * heroPanting);
+  // 濒死颤抖只能由 clock 推出：用 Math.random 会让同一毫秒的两次渲染长得不一样，
+  // 脏渲染会一直以为「有变化」，等于把节流关掉
+  var tremble = enemyDying ? Math.sin(breatheT * Math.PI * 2 / 0.18) : 0;
 
   // 受击挤压帧：p 从 0 走到 1，挤压量取 (1-p)；没在跑时 p === 1，挤压为 0
   var hitP = animator.progress("enemyHit");
@@ -5445,19 +5475,76 @@ function render(ctx, screen, state, animator, clock) {
     : 0;
   var gathering = tele && tele.kind === "swarm" ? 1 : 0;
 
-  draw.figure(ctx, enemyX + kick - lunge * screen.px(26) + charging * screen.px(4), stageCenter, enemySize,
+  /**
+   * 玩家出手动作。此前点按钮只有飘字在动，剪影始终像雕塑——
+   * 「我正在做什么」必须由身体说出来，否则四个行动在视觉上完全一样。
+   *
+   * 幅度都压得很小（最大 9px）：这是回合结算后的一瞬间，不是动作游戏。
+   * 四个 key 分别对应四种行动，闭着眼听音色、睁着眼看姿态，指向同一件事。
+   */
+  var shootP = animator.progress("heroShoot", linearEase);
+  var powerP = animator.progress("heroPower", linearEase);
+  var guardP = animator.progress("heroGuard", linearEase);
+  var drinkP = animator.progress("heroDrink", linearEase);
+  var lean = 0;
+  var tilt = 0;
+  var actSx = 0;
+  var actSy = 0;
+  var actBob = 0;
+
+  if (shootP < 1) {
+    // 精准：小幅前倾，收肩。稳，所以动作也稳
+    var se = Math.sin(shootP * Math.PI);
+    lean += screen.px(4) * se;
+    // 倾角才是「在用劲」的主信号，位移只是让重心跟着挪一点
+    tilt += 0.09 * se;
+    actSx -= 0.05 * se;
+    actSy += 0.04 * se;
+  }
+  if (powerP < 1) {
+    // 强力：前 35% 后仰拉满，后 65% 整个人扑出去。
+    // 拉得越狠打得越重——动作本身就在解释「低命中换高伤害」
+    var pe = powerP < 0.35
+      ? -Math.sin(powerP / 0.35 * Math.PI / 2) * 0.9
+      : Math.sin((powerP - 0.35) / 0.65 * Math.PI);
+    lean += screen.px(9) * pe;
+    tilt += 0.16 * pe;
+    actSx -= 0.09 * Math.abs(pe);
+    actSy += 0.06 * Math.abs(pe);
+  }
+  if (guardP < 1) {
+    // 防御：蹲下去，横向撑开。缩得比站着矮，才像「架住了」
+    var ge = Math.sin(guardP * Math.PI);
+    actSy -= 0.18 * ge;
+    actSx += 0.13 * ge;
+    tilt -= 0.03 * ge;
+  }
+  if (drinkP < 1) {
+    var de = Math.sin(drinkP * Math.PI);
+    actBob -= screen.px(4) * de;
+    actSy += 0.04 * de;
+    tilt -= 0.05 * de;
+  }
+  // 挨打时出手姿态让位：正被顶退的那一帧，「我举着弓」比「我被打中」次要
+  var actW = 1 - hurt;
+
+  draw.figure(ctx, enemyX + kick - lunge * screen.px(26) + charging * screen.px(4) + tremble * screen.px(1.2) - enemyDying * screen.px(2),
+    stageCenter, enemySize,
     battle.figure, battle.color, battle.trait, {
-      bob: -screen.px(2.2) * enemyBreath - charging * screen.px(1.2) * chargePulse,
+      bob: -screen.px(enemyAmp) * enemyBreath + tremble * screen.px(0.6)
+        - charging * screen.px(1.2) * chargePulse,
+      rot: 0.04 * charging + 0.05 * enemyDying,
       sx: 1 + 0.14 * squash + 0.06 * lunge - 0.07 * charging + 0.02 * chargePulse * charging
-        + 0.03 * gathering,
+        + 0.03 * gathering - 0.03 * enemyDying,
       sy: 1 - 0.12 * squash - 0.04 * lunge + 0.06 * charging - 0.02 * chargePulse * charging
-        - 0.02 * gathering
+        - 0.02 * gathering - 0.06 * enemyDying
     });
-  draw.figure(ctx, heroX - hurt * screen.px(5), stageCenter, screen.px(48),
+  draw.figure(ctx, heroX - hurt * screen.px(5) + lean * actW, stageCenter, screen.px(48),
     "hero", P.teal, "hero", {
-      bob: -screen.px(1.6) * heroBreath,
-      sx: 1 + 0.10 * hurt,
-      sy: 1 - 0.09 * hurt
+      bob: -screen.px(heroAmp) * heroBreath + actBob * actW,
+      rot: tilt * actW,
+      sx: 1 + 0.10 * hurt + actSx * actW,
+      sy: 1 - 0.09 * hurt + actSy * actW
     });
 
   if (tele) {
@@ -5793,6 +5880,16 @@ function onAction(action, state, app) {
     else if (command === "execute") app.sound("crit", 0.95);
     else if (command === "escape") app.sound("select", 0.7);
     else app.sound("bow", 0.6);
+  }
+
+  // 出手动作：和音色指向同一件事。时长比音效尾巴略长，动作不会在半路僵住。
+  // 落空、闪避也照播——「我确实出手了，只是没打中」，这正是需要看见的信息。
+  // 行动没成立（没药、没钱）时不播：喝了口空气还做出仰头动作，是在骗玩家。
+  if (app.animator && result.ok !== false) {
+    if (command === "defend") app.animator.start("heroGuard", 420);
+    else if (command === "potion") app.animator.start("heroDrink", 360);
+    else if (command === "power" || command === "execute") app.animator.start("heroPower", 420);
+    else if (command === "precise") app.animator.start("heroShoot", 240);
   }
 
   var hp = hitPos();

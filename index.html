@@ -261,6 +261,12 @@
         };
         if (wantTele === "charge") state.run.battle.enemyCharge = 1;
       }
+
+      // hp=8 把敌人血量压到 8%，用来检查残血喘息与濒死颤抖
+      var wantHpPct = parseFloat(q.get("hp"));
+      if (!isNaN(wantHpPct) && wantHpPct > 0 && wantHpPct < 100) {
+        state.run.battle.hp = Math.max(1, Math.round(state.run.battle.maxHp * wantHpPct / 100));
+      }
     }
   } else if (modal === "enhance") {
     state.current.modal = null;
@@ -347,14 +353,22 @@
     eng.invalidate();
   }
 
-  // fx=1：打一拳并只推进 80ms，用来截图检查伤害飘字/粒子/震屏的位置
+  // fx=1：打一拳并只推进 fxms 毫秒，用来截图检查伤害飘字/粒子/出手动作的位置
   var wantFx = q.get("fx") === "1";
   if (wantFx) {
+    // 帧循环会自己往下跑，截图时早就播完了。推进到指定毫秒后直接 stop()，
+    // 画面就冻在这一帧——不然看到的永远是动作结束后的静止姿态。
+    var fxMs = parseInt(q.get("fxms"), 10);
+    if (isNaN(fxMs) || fxMs <= 0) fxMs = 80;
     // 先渲染一帧：战斗弹窗要先画出来，特效才知道敌人站在哪
     eng.__tick(16);
-    T.dispatch({ id: "battle:precise" });
+    // act=precise|power|defend|potion：冻帧时看哪个出手动作
+    var wantAct = q.get("act") || "precise";
+    state.player.inventory.potion = Math.max(3, state.player.inventory.potion || 0);
+    T.dispatch({ id: "battle:" + wantAct });
     if (eng.clearToasts) eng.clearToasts();
-    eng.__tick(80);
+    eng.__tick(fxMs);
+    eng.stop();
   } else {
     eng.__tick(16);
     setTimeout(function () { eng.__tick(400); }, 80);
