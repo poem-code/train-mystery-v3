@@ -2862,7 +2862,24 @@ var ENEMIES = [
     damageRange: [12, 18],
     reward: { ether: 90, gold: 4 },
     layerMin: 99,
-    intro: "Boss：每 2 回合加盾 8 点，每 3 回合蓄势重击。"
+    intro: "Boss：每 2 回合加盾 8 点，每 3 回合蓄势重击。",
+    /**
+     * 第二形态：双影。
+     *
+     * 它是五个 Boss 里唯一「变多」的那个，所以机制也必须是数量：一回合打两段。
+     * 两段的单段伤害只有 55%，总和几乎不变——换的不是数值而是「防御架势只挡得住
+     * 第一段」这件事。玩家蹲一回合换来的免伤，在它面前只剩一半。
+     */
+    phase2: {
+      label: "双影",
+      line: "它从正中裂开，第二个影子站了起来。",
+      tip: "每回合两段攻击，防御架势只挡得住第一段。",
+      dmgAdd: 1,
+      shield: 10,
+      cadence: 2,
+      hits: 2,
+      hitScale: 0.55
+    }
   },
   {
     id: "facelessConductor",
@@ -2876,7 +2893,23 @@ var ENEMIES = [
     damageRange: [13, 18],
     reward: { ether: 96, gold: 4 },
     layerMin: 99,
-    intro: "Boss：检票的节奏越来越快，蓄势重击一次比一次狠。"
+    intro: "Boss：检票的节奏越来越快，蓄势重击一次比一次狠。",
+    /**
+     * 第二形态：查票。
+     *
+     * 车长的本职是核对——第二形态就把「核对」从检票挪到你的动作上：
+     * 连续两回合用同一招，这一击伤害 +45%。它惩罚的是重复，不是某个具体招式，
+     * 所以四个行动都不吃亏，吃亏的是「一直按同一个按钮」。
+     */
+    phase2: {
+      label: "查票",
+      line: "它把票根翻过来，开始照着你上一回合念。",
+      tip: "重复上回合的同一招，这一击伤害 +45%。",
+      dmgAdd: 1,
+      shield: 12,
+      cadence: 2,
+      repeatPunish: 0.45
+    }
   },
   {
     id: "rustStoker",
@@ -2891,7 +2924,24 @@ var ENEMIES = [
     damageRange: [12, 17],
     reward: { ether: 92, gold: 5 },
     layerMin: 99,
-    intro: "Boss：整节锅炉都是它的躯壳，每次受击都要先啃穿一层铁。"
+    intro: "Boss：整节锅炉都是它的躯壳，每次受击都要先啃穿一层铁。",
+    /**
+     * 第二形态：过载。
+     *
+     * 它把炉门顶开，把自己也点了——出手重 30%，但每回合自损 5 点。
+     * 这是唯一一个「变强同时变脆」的形态：玩家不用变强，只要拖住。
+     * 换阶段护盾也给得最少（8），因为它的第二形态本来就该是「赶紧的」。
+     */
+    phase2: {
+      label: "过载",
+      line: "炉门被顶开，火从它的缝里烧出来——它也烧起来了。",
+      tip: "出手重 30%，但它每回合自损 5 点生命。",
+      dmgAdd: 0,
+      shield: 8,
+      cadence: 2,
+      dmgMul: 1.3,
+      selfBleed: 5
+    }
   },
 
   /* ================= 第二批次：新特性 + 深水区敌人 =================
@@ -3054,7 +3104,24 @@ var ENEMIES = [
     damageRange: [11, 20],
     reward: { ether: 100, gold: 5 },
     layerMin: 99,
-    intro: "Boss：它每一次扳道都赌上整列车的方向，出手轻重毫无规律。"
+    intro: "Boss：它每一次扳道都赌上整列车的方向，出手轻重毫无规律。",
+    /**
+     * 第二形态：脱轨。
+     *
+     * 赌徒特性本来就在掷骰，第二形态让它多掷一次：35% 概率追加一段 55% 的伤害。
+     * 期望伤害只涨 19%，但方差很大——玩家算不准还剩几回合能扛，
+     * 这正是扳道工该给人的感觉：不是更疼，是更没底。
+     */
+    phase2: {
+      label: "脱轨",
+      line: "它把道岔扳到底，铁轨的摩擦声失去了规律。",
+      tip: "每次出手有 35% 概率再扳一次道，追加一击。",
+      dmgAdd: 1,
+      shield: 10,
+      cadence: 2,
+      extraChance: 0.35,
+      extraScale: 0.55
+    }
   },
   {
     id: "thePassenger",
@@ -3068,7 +3135,24 @@ var ENEMIES = [
     damageRange: [11, 16],
     reward: { ether: 104, gold: 5 },
     layerMin: 99,
-    intro: "Boss：从第一站就在车上，一直在等一个愿意让它住下的人。"
+    intro: "Boss：从第一站就在车上，一直在等一个愿意让它住下的人。",
+    /**
+     * 第二形态：换宿主。
+     *
+     * 它不再站在对面，而是钻进来。所以这一段没有护盾可以挡：每回合穿盾扣 3 点，
+     * 你喝下的药剂只回一半。它的护盾给得也最少（6）——它已经不在外面了，
+     * 外面那层壳没有意义。玩家能做的只有一件事：在血被抽干之前把它打死。
+     */
+    phase2: {
+      label: "换宿主",
+      line: "它不再站在你对面——它钻了进来。",
+      tip: "每回合穿盾掉 3 点，回血药剂只回一半。",
+      dmgAdd: 1,
+      shield: 6,
+      cadence: 3,
+      dotOnPlayer: 3,
+      healCut: 0.5
+    }
   },
 
   /* ---------------- 普通 · 第三批 ---------------- */
@@ -5669,6 +5753,24 @@ var P = draw.PALETTE;
 function linearEase(t) { return t; }
 
 /**
+ * 把 #RRGGBB 转成带透明度的 rgba 串。
+ *
+ * 不能靠 ctx.globalAlpha 做半透明：draw.figure 内部走 figFill，那里会把
+ * globalAlpha 覆盖成 0.94，外层设的透明度会被无声地吃掉。所以透明度必须
+ * 落在颜色字符串里。颜色不合法时退回中性灰，画面上最多是「影子颜色不对」，
+ * 不会整帧抛错。
+ */
+function fadeColor(hex, alpha) {
+  var h = typeof hex === "string" && hex.charAt(0) === "#" ? hex.slice(1) : "";
+  if (h.length !== 6) return "rgba(160,170,178," + alpha + ")";
+  var r = parseInt(h.slice(0, 2), 16);
+  var g = parseInt(h.slice(2, 4), 16);
+  var b = parseInt(h.slice(4, 6), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return "rgba(160,170,178," + alpha + ")";
+  return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
+}
+
+/**
  * 最近一次渲染的坐标缓存。
  * onAction 拿不到 screen，特效需要知道「敌人在哪」才能把飘字打对位置，
  * 所以由 render 每帧写入，onAction 读取。屏幕尺寸变化时 render 会立刻刷新。
@@ -5726,11 +5828,19 @@ function render(ctx, screen, state, animator, clock) {
   cursor += screen.px(15);
 
   // 敌人名 + 词缀徽标（精英必须在打之前就能看出「他有什么毛病」）
+  // 第二形态的形态名徽标也在这里先算宽度：名字是先画的，徽标是后画的，
+  // 不把这几十像素让出来，窄屏上长名字会钻到徽标底下被盖掉。
+  var phaseLabelTxt = battle.boss && battle.phase >= 2 ? (battle.phaseLabel || "第二阶段") : null;
+  var phaseChipW = phaseLabelTxt
+    ? draw.measure(ctx, phaseLabelTxt, screen.fz(9), true) + screen.px(12) : 0;
   var nameMaxW = innerW;
+  var affixChipW = 0;
+  if (phaseChipW) nameMaxW -= phaseChipW + screen.px(8);
   if (battle.affixName) {
     var badge = "词缀 · " + battle.affixName;
     var bw = draw.measure(ctx, badge, screen.fz(9), true) + screen.px(14);
-    nameMaxW = innerW - bw - screen.px(8);
+    affixChipW = bw;
+    nameMaxW -= bw + screen.px(8);
     var chip = { x: right - bw, y: cursor + screen.px(5), w: bw, h: screen.px(17) };
     draw.fillRR(ctx, chip, "rgba(224,177,92,0.18)", screen.px(9));
     draw.text(ctx, badge, chip.x + bw / 2, chip.y + screen.px(3), {
@@ -5750,12 +5860,20 @@ function render(ctx, screen, state, animator, clock) {
    * Boss 第二形态的标记。
    * 用徽标而不是「名字（第二阶段）」：名字改动会让玩家怀疑换了个敌人，
    * 而事实是同一个东西裂开了。徽标只加后缀信息，不重命名。
+   *
+   * 徽标文案跟着形态走：「双影」「查票」「过载」比统一写「第二阶段」有用得多——
+   * 五个 Boss 的第二形态各不相同，统一文案等于告诉玩家「又是一样的」。
+   * 老存档没有 phaseLabel 时退回通用文案，不会出现空徽标。
    */
-  if (battle.boss && battle.phase >= 2) {
-    var pw = draw.measure(ctx, "第二阶段", screen.fz(9), true) + screen.px(12);
-    var pchip = { x: right - pw, y: cursor + screen.px(9), w: pw, h: screen.px(16) };
+  if (phaseLabelTxt) {
+    var pw = phaseChipW;
+    // 词缀徽标也在这一行：两个都贴右边会叠成一团，形态名要往左让出词缀的位置
+    var pchip = {
+      x: right - pw - affixChipW - (affixChipW ? screen.px(6) : 0),
+      y: cursor + screen.px(9), w: pw, h: screen.px(16)
+    };
     draw.fillRR(ctx, pchip, "rgba(255,90,68,0.20)", screen.px(8));
-    draw.text(ctx, "第二阶段", pchip.x + pw / 2, pchip.y + screen.px(3), {
+    draw.text(ctx, phaseLabelTxt, pchip.x + pw / 2, pchip.y + screen.px(3), {
       size: screen.fz(9),
       align: "center",
       bold: true,
@@ -5912,6 +6030,28 @@ function render(ctx, screen, state, animator, clock) {
   }
   // 挨打时出手姿态让位：正被顶退的那一帧，「我举着弓」比「我被打中」次要
   var actW = 1 - hurt;
+
+  /**
+   * 双影：第二形态真的有两个影子，剪影就必须是两个。
+   *
+   * 只画一个半透明副本会被读成「重影 / 渲染叠了一层」，所以三个信号必须同时给：
+   * 落后半个身位、呼吸相位错开、颜色更暗。玩家看到的是「那边还站着一个」，
+   * 而不是「画面糊了」——这一段没有任何数值含义，只是让两段攻击有视觉依据。
+   */
+  if (battle.phaseHits > 1) {
+    var twinBreath = Math.sin(breatheT * Math.PI * 2 / (2.6 / phaseRate) + Math.PI * 0.85);
+    // 偏移量取敌人身宽的六成：再小两具剪影就糊成一团，玩家读到的是「渲染重影」
+    // 而不是「那边还站着一个」；再大就会压到玩家的血条上。
+    // 抬高 6px 是透视：站得远的那个，脚底在画面上更高一点。
+    draw.figure(ctx, enemyX - enemySize * 0.6 + tremble * screen.px(0.7),
+      stageCenter - screen.px(6), enemySize * 0.8,
+      battle.figure, fadeColor(battle.color, 0.38), battle.trait, {
+        bob: -screen.px(enemyAmp) * twinBreath + tremble * screen.px(0.5),
+        rot: -0.05 * charging + 0.05 * enemyDying,
+        sx: 1 + 0.03 * gathering - 0.03 * enemyDying,
+        sy: 1 - 0.02 * gathering - 0.05 * enemyDying
+      });
+  }
 
   draw.figure(ctx, enemyX + kick - lunge * screen.px(26) + charging * screen.px(4) + tremble * screen.px(1.2) - enemyDying * screen.px(2),
     stageCenter, enemySize,
@@ -6283,7 +6423,7 @@ function onAction(action, state, app) {
       });
       // 飘字要抬得比伤害数字高得多：伤害数字从 y-8 往上飘 52px，
       // 两个都在同一高度就会撞成一团「第二阶段-16」。
-      fx.float(bp2.x, bp2.y - px(58), "第二阶段", {
+      fx.float(bp2.x, bp2.y - px(58), battleBefore.phaseLabel || "第二阶段", {
         color: "#FF9C86", size: px(20), rise: px(24), bold: true
       });
     }
@@ -9883,6 +10023,13 @@ function startBattle(state, kind) {
     elite: template.kind === "elite",
     // 1 = 完整形态，2 = 半血后的第二形态。只有 Boss 会变，其余永远是 1。
     phase: 1,
+    // 第二形态的形态名与段数：由 checkBossPhase 按模板的 phase2 写入，
+    // UI 与伤害结算都只读这两个字段，不自己去查敌人表
+    phaseLabel: null,
+    phaseHits: 1,
+    // 上一步 / 上上一步动作：第二形态「查票」的判定依据
+    lastAction: null,
+    prevAction: null,
     phaseBreak: false,
     enemyShield: 0,
     playerShield: run.effects.firstTurnShield,
@@ -9959,6 +10106,22 @@ function dealEnemyDamage(run, battle, amount) {
 }
 
 /**
+ * 每个 Boss 的第二形态是一次改名，还是真的换了一套打法？
+ *
+ * 0.9.3 给所有 Boss 共用一套第二形态（伤害 +3 / 护盾 12 / 节奏变快）。
+ * 同一套机制重复五次，第二次就不新鲜了——玩家打到第二个 Boss 就知道
+ * 「半血之后它会加盾」，后面三次只是在复述。
+ *
+ * 所以第二形态的参数从数据层读：模板上带 phase2 就按它来，没带就用旧的那套兜底
+ * （旧存档、测试桩、未来新增但没写 phase2 的 Boss 都不会崩）。
+ */
+function phase2Of(battle) {
+  if (!battle || !battle.enemyId) return null;
+  var def = enemiesApi.getById(battle.enemyId);
+  return def && def.phase2 ? def.phase2 : null;
+}
+
+/**
  * Boss 换阶段：血量首次跌破半血时进入第二阶段。
  *
  * 单场 Boss 战原本只是「血更厚的普通怪」——打到最后三分之一的回合和第一回合
@@ -9976,11 +10139,16 @@ function checkBossPhase(battle) {
   if (battle.hp <= 0) return false;
   if (battle.hp > battle.maxHp * 0.5) return false;
 
+  var p2 = phase2Of(battle);
   battle.phase = 2;
+  // 形态名落进战斗对象：UI 只读，不许自己按 enemyId 猜
+  battle.phaseLabel = (p2 && p2.label) || "第二阶段";
+  battle.phaseHits = (p2 && p2.hits > 1) ? Math.round(p2.hits) : 1;
   battle.enemyCharge = 0;
   battle.telegraph = null;
   battle.phaseBreak = true;
-  battle.damageRange = [battle.damageRange[0] + 3, battle.damageRange[1] + 3];
+  var add = p2 && typeof p2.dmgAdd === "number" ? p2.dmgAdd : 3;
+  battle.damageRange = [battle.damageRange[0] + add, battle.damageRange[1] + add];
   // 这里不写日志：dealEnemyDamage 在「命中」那行 push 之前跑，
   // 现在写会变成「崩开 → 命中」，玩家从上往下读就是反的。
   // 交给 enemyTurn 的 phaseBreak 分支，按时间顺序补上。
@@ -9998,9 +10166,10 @@ function checkBossPhase(battle) {
 function writeTelegraph(battle) {
   if (!battle || battle.over) return null;
   battle.telegraph = null;
-  // 第二形态的节奏：每 2 回合蓄一次（原本每 3 回合）。
-  // 这是换阶段真正的「变强」——不是加成数字变大，而是玩家能反应的窗口变短。
-  var cadence = battle.phase >= 2 ? 2 : 3;
+  // 第二形态的节奏由形态自己定：双影/查票/脱轨仍是每 2 回合，
+  // 换宿主退回 3 回合（它已经在体内持续掉血，再来个高频蓄势就只是加法）。
+  var p2 = battle.phase >= 2 ? phase2Of(battle) : null;
+  var cadence = battle.phase >= 2 ? ((p2 && p2.cadence) || 2) : 3;
   if (battle.turn % cadence !== 0) return null;
 
   var t = null;
@@ -10048,12 +10217,15 @@ function enemyTurn(state) {
    * 让跳过不成为纯粹的送分。
    */
   if (battle.phaseBreak) {
+    var p2b = phase2Of(battle);
     battle.phaseBreak = false;
-    battle.enemyShield += 12;
+    battle.enemyShield += p2b && typeof p2b.shield === "number" ? p2b.shield : 12;
     battle.lastEnemyDamage = 0;
-    // 日志是倒序显示的（最新在最上），所以要先 push「崩开」再 push「重组」，
-    // 玩家从上往下读才是「重组 / 崩开 / 刚才那一下命中」。
-    pushBattleLog(battle, battle.name + " 的外壳崩开，露出里面的第二层——它比刚才更凶了。");
+    // 日志是倒序显示的（最新在最上），所以先推「规则说明」再推「崩开描述」再推「重组」，
+    // 玩家从上往下读才是「重组 / 它裂开了 / 这套新打法是什么 / 刚才那一下命中」。
+    if (p2b && p2b.tip) pushBattleLog(battle, p2b.tip);
+    pushBattleLog(battle, (p2b && p2b.line)
+      || (battle.name + " 的外壳崩开，露出里面的第二层——它比刚才更凶了。"));
     pushBattleLog(battle, battle.name + " 停在原地重组躯壳，暂时没有还手。");
     writeTelegraph(battle);
     battle.turn += 1;
@@ -10119,13 +10291,48 @@ function enemyTurn(state) {
     battle.webbed = true;
     pushBattleLog(battle, battle.name + " 的黏网罩下来，你的下一击会被拖慢。");
   }
-  if (battle.defenseStance) {
-    damage = Math.round(damage * 0.6);
-    battle.defenseStance = false;
-  }
   if (state.player.sanity < 30) {
     var reduction = clamp(run.effects.lowSanityDamageReduction, 0, 0.8);
     damage = Math.round(damage * (1 - reduction));
+  }
+  /**
+   * 第二形态的伤害改装。
+   *
+   * 三个开关都只在这一处生效（敌方伤害的唯一出口），所以「查票」不可能漏判、
+   * 「过载」也不可能在某条分支上忘了乘。加新形态只需要往数据里加字段。
+   */
+  var p2 = battle.phase >= 2 ? phase2Of(battle) : null;
+  if (p2 && p2.dmgMul) damage = Math.round(damage * p2.dmgMul);
+  var punished = false;
+  if (p2 && p2.repeatPunish && battle.lastAction && battle.lastAction === battle.prevAction) {
+    damage = Math.round(damage * (1 + p2.repeatPunish));
+    punished = true;
+  }
+
+  /**
+   * 分段：双影每回合两段、脱轨有概率追加一段。
+   *
+   * 拆成「段」而不是「一次打死」，是为了让护盾和防御架势按段结算——
+   * 一次攻击吃不完的护盾，两段就能吃两遍。所以双影总伤害几乎没涨，
+   * 真正变强的部分是「蹲下换来的免伤只剩一半」。
+   */
+  var segs = [damage];
+  var hitCount = 1;
+  var si;
+  if (p2 && p2.hits > 1) {
+    hitCount = Math.round(p2.hits);
+    var per = Math.max(1, Math.round(damage * (p2.hitScale || 0.6)));
+    segs = [];
+    for (si = 0; si < hitCount; si += 1) segs.push(per);
+  } else if (p2 && p2.extraChance && Math.random() < p2.extraChance) {
+    segs.push(Math.max(1, Math.round(damage * (p2.extraScale || 0.55))));
+  }
+
+  // 防御架势只保第一段。多段攻击下「蹲下」挡住的从来只是先到的那一下，
+  // 这是双影真正难打的原因，也是它和「伤害 +3」的区别。
+  if (battle.defenseStance) {
+    battle.defenseStance = false;
+    segs[0] = Math.round(segs[0] * 0.6);
   }
 
   // 迅捷 / 召唤：额外的一次攻击，同样要过护盾，但不吃防御架势的减伤
@@ -10140,18 +10347,38 @@ function enemyTurn(state) {
       pushBattleLog(battle, "被召来的小体扑上来，额外撕咬 " + affix.summonDamage + " 点。");
     }
   }
-  damage += extra;
+  segs[0] += extra;
 
-  var remaining = damage;
-  if (battle.playerShield > 0) {
-    var absorbed = Math.min(battle.playerShield, remaining);
-    battle.playerShield -= absorbed;
-    remaining -= absorbed;
+  var remaining = 0;
+  for (si = 0; si < segs.length; si += 1) {
+    var seg = segs[si];
+    if (battle.playerShield > 0) {
+      var absorbed = Math.min(battle.playerShield, seg);
+      battle.playerShield -= absorbed;
+      seg -= absorbed;
+    }
+    remaining += seg;
   }
 
   state.player.hp = clamp(state.player.hp - remaining, 0, state.player.maxHp);
   battle.lastEnemyDamage = remaining;
-  pushBattleLog(battle, battle.name + " 反击，造成 " + remaining + " 点伤害。");
+  // 惩罚必须说出口，否则玩家只会觉得「这一下莫名其妙特别疼」
+  if (punished) pushBattleLog(battle, "它认得这个动作——你上一回合也是这么做的。");
+  if (hitCount > 1) {
+    pushBattleLog(battle, battle.name + " 连击 " + hitCount + " 次，共造成 " + remaining + " 点伤害。");
+  } else if (segs.length > 1) {
+    pushBattleLog(battle, battle.name + " 补上一记，共造成 " + remaining + " 点伤害。");
+  } else {
+    pushBattleLog(battle, battle.name + " 反击，造成 " + remaining + " 点伤害。");
+  }
+
+  // 换宿主：这一下不打在身上，直接从里面扣——护盾对它无效，
+  // 「再蹲一回合」这条最省事的解法被它拿掉了
+  if (p2 && p2.dotOnPlayer && state.player.hp > 0) {
+    state.player.hp = clamp(state.player.hp - p2.dotOnPlayer, 0, state.player.maxHp);
+    battle.lastEnemyDamage = remaining + p2.dotOnPlayer;
+    pushBattleLog(battle, "它在你体内翻了个身，穿盾扣掉 " + p2.dotOnPlayer + " 点生命。");
+  }
 
   // 毒化：命中后挂 3 回合中毒，之后每回合额外掉血
   if (affix && affix.poison && remaining > 0) {
@@ -10190,6 +10417,13 @@ function enemyTurn(state) {
   // 狂暴：每次出手自伤，但不会把自己打死
   if (affix && affix.selfDamage) {
     battle.hp = Math.max(1, battle.hp - affix.selfDamage);
+  }
+
+  // 过载：锅炉反噬。和狂暴词缀同一条思路——它变强的方式是把自己烧掉，
+  // 所以玩家的最优解从「扛住」变成「拖住」，多撑一回合就等于多打一下。
+  if (p2 && p2.selfBleed) {
+    battle.hp = Math.max(1, battle.hp - p2.selfBleed);
+    pushBattleLog(battle, "过载的锅炉反噬自身，它损失 " + p2.selfBleed + " 点生命。");
   }
 
   // 吸血特性：按实际打出的伤害回血，打空（被护盾吃光）就不回
@@ -10261,11 +10495,28 @@ function applyMirrorReflect(state, battle) {
   return false;
 }
 
+/**
+ * 记下这一步动作，供第二形态的「查票」比对上一回合。
+ *
+ * 只记真正消耗回合的行动：逃跑、重战卡、看广告复活都不算——
+ * 它们不产生回合，也就不该被当成「你又用了一次同一招」。
+ */
+function markAction(battle, actionId) {
+  if (!battle) return;
+  battle.prevAction = battle.lastAction || null;
+  battle.lastAction = actionId;
+}
+
 function battleAction(state, actionId) {
   var run = state.run;
   var battle = run && run.battle;
   if (!battle || battle.over) return { ok: false };
   if (state.player.hp <= 0) return { ok: false };
+
+  // 药剂 / 秒杀卡在各自分支里记：没货的那一次不该算作一次行动
+  if (actionId === "precise" || actionId === "power" || actionId === "defend") {
+    markAction(battle, actionId);
+  }
 
   if (actionId === "precise") {
     var d1 = calcPlayerDamage(state, config.preciseBonus);
@@ -10334,8 +10585,14 @@ function battleAction(state, actionId) {
     state.player.inventory.potion -= 1;
     var healAmt = config.potionHeal + run.effects.potionBonus
       + state.progress.trainUpgrades.medbay * config.medbayHealBonus;
+    // 换宿主：药还是那瓶药，只是喝下去有一半被它先喝了
+    var p2h = battle.phase >= 2 ? phase2Of(battle) : null;
+    if (p2h && p2h.healCut) {
+      healAmt = Math.max(1, Math.round(healAmt * (1 - p2h.healCut)));
+    }
     state.player.hp = clamp(state.player.hp + healAmt, 0, state.player.maxHp);
     pushBattleLog(battle, "你使用回血药剂，恢复 " + healAmt + " 点生命。");
+    markAction(battle, "potion");
     enemyTurn(state);
     return { ok: true };
   }
@@ -10346,6 +10603,7 @@ function battleAction(state, actionId) {
       return { ok: false, message: "没有秒杀卡。" };
     }
     state.player.inventory.executeCard -= 1;
+    markAction(battle, "execute");
     if (battle.boss) {
       var dmg = Math.floor(battle.maxHp * 0.5);
       var r3 = dealEnemyDamage(run, battle, dmg);
@@ -11274,6 +11532,17 @@ function materialOf(raw) {
 }
 
 /**
+ * 战斗动作 id 白名单。
+ * 「查票」靠 lastAction / prevAction 判定重复，这两个字段来自存档——
+ * 不白名单化的话，改存档就能把任意字符串塞进战斗对象，进而影响伤害判定。
+ */
+function sanitizeActionId(value) {
+  if (value === "precise" || value === "power" || value === "defend"
+    || value === "potion" || value === "execute") return value;
+  return null;
+}
+
+/**
  * 战斗预告（下一回合敌人要干什么）。
  * 只认白名单里的 kind，label/detail 截断长度：存档是可被改的，
  * 不能让一段任意文本顺着这里流进渲染层。
@@ -11330,6 +11599,13 @@ function sanitizeBattle(raw) {
     // 阶段必须存下来：读档丢掉它，一场打到一半的 Boss 战会退回第一形态，
     // 伤害区间也跟着回退——玩家辛苦打掉的半管血等于白打
     phase: toInt(raw.phase, 1, 2, 1),
+    // 形态名与段数：读档必须跟着回来。丢了它，UI 会把「双影」显示成默认的
+    // 「第二阶段」，而两段攻击的形态会退化成一段——存档等于偷偷改了难度
+    phaseLabel: typeof raw.phaseLabel === "string" && raw.phaseLabel
+      ? raw.phaseLabel.slice(0, 6) : null,
+    phaseHits: toInt(raw.phaseHits, 1, 3, 1),
+    lastAction: sanitizeActionId(raw.lastAction),
+    prevAction: sanitizeActionId(raw.prevAction),
     phaseBreak: raw.phaseBreak === true,
     enemyShield: toInt(raw.enemyShield, 0, 999, 0),
     playerShield: toInt(raw.playerShield, 0, 999, 0),

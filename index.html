@@ -266,14 +266,19 @@
         if (wantTele === "charge") state.run.battle.enemyCharge = 1;
       }
 
-      // phase=2 直接落到 Boss 第二形态（徽标、血条换色、更急的呼吸）
+      // phase=2 直接落到 Boss 第二形态（形态名徽标、血条换色、更急的呼吸、双影的第二具剪影）
+      // 参数从数据层读，不能在预览里另写一份——预览和真机不一致，走查就等于白看
       if (q.get("phase") === "2" && state.run.battle.boss) {
-        state.run.battle.phase = 2;
-        state.run.battle.damageRange = [
-          state.run.battle.damageRange[0] + 3,
-          state.run.battle.damageRange[1] + 3
-        ];
-        state.run.battle.logs.unshift(state.run.battle.name + " 的外壳崩开，露出里面的第二层——它比刚才更凶了。");
+        var b2 = state.run.battle;
+        var ph2 = (load("js/game/data/enemies.js").getById(b2.enemyId) || {}).phase2;
+        var add2 = ph2 && typeof ph2.dmgAdd === "number" ? ph2.dmgAdd : 3;
+        b2.phase = 2;
+        b2.phaseLabel = (ph2 && ph2.label) || "第二阶段";
+        b2.phaseHits = ph2 && ph2.hits > 1 ? ph2.hits : 1;
+        b2.damageRange = [b2.damageRange[0] + add2, b2.damageRange[1] + add2];
+        if (ph2 && ph2.tip) b2.logs.unshift(ph2.tip);
+        b2.logs.unshift((ph2 && ph2.line) || "外壳崩开，露出里面的第二层——它比刚才更凶了。");
+        b2.logs.unshift(b2.name + " 停在原地重组躯壳，暂时没有还手。");
       }
 
       // hp=8 把敌人血量压到 8%，用来检查残血喘息与濒死颤抖
