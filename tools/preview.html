@@ -284,6 +284,8 @@
         b2.phaseHits = ph2 && ph2.hits > 1 ? ph2.hits : 1;
         b2.damageRange = [b2.damageRange[0] + add2, b2.damageRange[1] + add2];
         if (ph2 && ph2.tip) b2.logs.unshift(ph2.tip);
+        // 呼应句按 state.js 的 push 顺序对齐：先 tip、再呼应、再崩开、最后重组
+        if (ph2 && ph2.callback) b2.logs.unshift("「" + ph2.callback + "」");
         b2.logs.unshift((ph2 && ph2.line) || "外壳崩开，露出里面的第二层——它比刚才更凶了。");
         b2.logs.unshift(b2.name + " 停在原地重组躯壳，暂时没有还手。");
       }

@@ -400,9 +400,17 @@ function render(ctx, screen, state, animator, clock) {
   var logs = battle.logs.slice(0, maxLines);
   var i;
   for (i = 0; i < logs.length; i += 1) {
+    /**
+     * 呼应句换一支颜色。
+     * 它和登场卡上的「预感」是同一句话的两头，所以用同一支暖色（#E6B4A4）——
+     * 玩家不会去记文案，但会认出「这个颜色刚才在卡片上出现过」。
+     * 判据只看首字的「」：日志里只有这一种句子会被括起来。
+     */
+    var lineColor = i === 0 ? P.ink : (P.inkSoft || P.inkDim);
+    if (logs[i].charAt(0) === "「") lineColor = "#E6B4A4";
     draw.text(ctx, logs[i], logRect.x + screen.px(8), logRect.y + screen.px(6) + i * lineH, {
       size: screen.fz(10),
-      color: i === 0 ? P.ink : P.inkSoft || P.inkDim,
+      color: lineColor,
       maxWidth: logRect.w - screen.px(16),
       alpha: 1 - i * 0.16
     });

@@ -1073,9 +1073,23 @@ function enemyTurn(state) {
     battle.phaseBreak = false;
     battle.enemyShield += p2b && typeof p2b.shield === "number" ? p2b.shield : 12;
     battle.lastEnemyDamage = 0;
-    // 日志是倒序显示的（最新在最上），所以先推「规则说明」再推「崩开描述」再推「重组」，
-    // 玩家从上往下读才是「重组 / 它裂开了 / 这套新打法是什么 / 刚才那一下命中」。
+    // 日志是倒序显示的（最新在最上），所以先推「规则说明」再推「呼应」再推「崩开」再推「重组」，
+    // 玩家从上往下读才是「重组 / 它裂开了 / 那句话对上了 / 这套新打法是什么 / 刚才那一下命中」。
     if (p2b && p2b.tip) pushBattleLog(battle, p2b.tip);
+    /**
+     * 呼应：登场卡上那句「预感」在这一刻兑现。
+     *
+     * 它是**先 push 的**，所以在倒序日志里排在「崩开描述」下面一行——
+     * 读起来是「它裂开了 / 「那句话对上了」」，事件在前、醒悟在后。
+     * 用「」括起来表示这是玩家脑子里的声音，不是战场播报；
+     * 不加引号就会读成第三段旁白，和 tip 糊成一片。
+     *
+     * 只在「当时真的看过那张卡」时才写（`introHint` 存在）：老存档、以及没有
+     * phase2 的对手都没有这句铺垫，硬凑一句通用的「你想起了什么」比不写更尴尬。
+     */
+    if (p2b && p2b.callback && battle.introHint) {
+      pushBattleLog(battle, "「" + p2b.callback + "」");
+    }
     pushBattleLog(battle, (p2b && p2b.line)
       || (battle.name + " 的外壳崩开，露出里面的第二层——它比刚才更凶了。"));
     pushBattleLog(battle, battle.name + " 停在原地重组躯壳，暂时没有还手。");

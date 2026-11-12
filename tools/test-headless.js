@@ -2091,6 +2091,66 @@ ok("预感不剧透形态名（说破就变成说明书）",
     });
   }), JSON.stringify(bossHints));
 
+/* ---------------- 共鸣：落地（登场卡预感的兑现） ---------------- */
+
+section("登场卡的呼应");
+
+var cb1 = freshRun();
+var bCb1 = makeBattle(cb1, {
+  enemyId: "riftWarden", boss: true, hp: 100, maxHp: 100, damageRange: [10, 10],
+  introHint: "它站在灯下的角度不太对——影子比身体多出一层。"
+});
+bCb1.hp = 40;
+stateApi.battleAction(cb1, "precise");
+
+var cbText = "「你终于看清了——它从来都不是一个。」";
+var cbLineText = "它从正中裂开，第二个影子站了起来。";
+var cbIdx = bCb1.logs.indexOf(cbText);
+var cbLineIdx = bCb1.logs.indexOf(cbLineText);
+ok("半血崩开时写出呼应句", cbIdx >= 0, JSON.stringify(bCb1.logs.slice(0, 5)));
+ok("呼应句紧贴在崩开描述下面一行（事件在前、醒悟在后）",
+  cbIdx >= 0 && cbIdx === cbLineIdx + 1,
+  "callback=" + cbIdx + " line=" + cbLineIdx);
+ok("呼应句不是预感的复读",
+  cbText !== bCb1.introHint && bCb1.introHint.length > 0);
+ok("呼应句用「」括起来（是玩家脑子里的声音，不是战场播报）",
+  cbText.charAt(0) === "「" && cbText.charAt(cbText.length - 1) === "」");
+
+// 没看过登场卡（0.9.4 的老存档打到一半读回来）：没有铺垫，就不该有这句醒悟
+var cb2 = freshRun();
+var bCb2 = makeBattle(cb2, {
+  enemyId: "riftWarden", boss: true, hp: 100, maxHp: 100, damageRange: [10, 10]
+});
+bCb2.hp = 40;
+stateApi.battleAction(cb2, "precise");
+ok("没看过登场卡时不写呼应（没有铺垫就没有醒悟）",
+  bCb2.phase === 2 && bCb2.logs.indexOf(cbText) < 0,
+  JSON.stringify(bCb2.logs.slice(0, 4)));
+
+// 数据护栏：预感与呼应必须成对，且呼应不许写成规则说明
+var cbMissingHint = [];
+var cbMissing = [];
+var cbRuleWords = ["护盾", "伤害 +", "概率", "倍", "回合", "点生命", "%"];
+var cbRuleHits = [];
+enemiesAllT.forEach(function (def) {
+  if (def.kind !== "boss") return;
+  var p2 = def.phase2;
+  if (!p2) return;
+  if (!p2.hint && p2.callback) cbMissingHint.push(def.id);
+  if (p2.hint && !p2.callback) cbMissing.push(def.id);
+  if (p2.callback) {
+    cbRuleWords.forEach(function (w) {
+      if (p2.callback.indexOf(w) >= 0) cbRuleHits.push(def.id + ":" + w);
+    });
+  }
+});
+ok("有呼应就一定有预感（否则句子没有根）", cbMissingHint.length === 0,
+  JSON.stringify(cbMissingHint));
+ok("每个 Boss 的预感都有呼应（埋了就该收）", cbMissing.length === 0,
+  JSON.stringify(cbMissing));
+ok("呼应写得像台词而不是规则说明", cbRuleHits.length === 0,
+  JSON.stringify(cbRuleHits));
+
 /* ---------------- 汇总 ---------------- */
 console.log("\n" + "=".repeat(46));
 console.log("通过 " + PASS + " / " + (PASS + FAIL));
