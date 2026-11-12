@@ -1969,6 +1969,128 @@ ok("形态名徽标不会盖住敌人名字",
   !!namePut && !!chipPut && namePut[1] + Math.min(3, "测试体".length) * 20 <= chipPut[1],
   JSON.stringify(namePut) + " chip=" + JSON.stringify(chipPut));
 
+/* ---------------- Boss 登场卡 ---------------- */
+
+section("Boss 登场卡");
+
+function stubApp() {
+  return {
+    sound: function () {},
+    commit: function () {},
+    fx: function () { return null; },
+    toast: function () {},
+    openInfo: function () {},
+    requestAd: function () {}
+  };
+}
+
+// 走真实的 startBattle，不手搓字段：手搓就测不到「开战时有没有写卡」
+var bi1 = freshRun();
+stateApi.startBattle(bi1, "boss");
+var bossB1 = bi1.run.battle;
+ok("Boss 战开局先亮登场卡", bossB1.introOpen === true);
+ok("登场卡带一句预感",
+  typeof bossB1.introHint === "string" && bossB1.introHint.length > 0,
+  String(bossB1.introHint));
+
+var bi2 = freshRun();
+stateApi.startBattle(bi2, "normal");
+ok("普通战斗不插登场卡", bi2.run.battle.introOpen === false);
+
+// 卡片占满面板：这一帧不应该画任何行动按钮，否则玩家会以为能直接出招
+var recIntro = renderBattleTexts(bi1);
+ok("卡片上没有战斗行动按钮",
+  recIntro.texts.indexOf("精准射击") < 0
+  && recIntro.texts.indexOf("防御架势") < 0
+  && recIntro.texts.indexOf("秒杀卡") < 0,
+  JSON.stringify(recIntro.texts));
+ok("卡片上画了敌人名字、预感和「迎战」",
+  recIntro.texts.indexOf(bossB1.name) >= 0
+  && recIntro.texts.indexOf(bossB1.introHint) >= 0
+  && recIntro.texts.indexOf("迎战") >= 0,
+  JSON.stringify(recIntro.texts.slice(0, 10)));
+ok("卡片去掉了 intro 里的「Boss：」前缀",
+  recIntro.texts.filter(function (t) { return t.indexOf("Boss：") === 0; }).length === 0,
+  JSON.stringify(recIntro.texts));
+
+// 越界检查用命中区而不是截图：坐标是确定的，截图会随 dpr 与字体渲染漂
+var introHit = uiApiT.getHits().filter(function (h) { return h.id === "battle:intro"; })[0];
+ok("整块面板都是「关掉卡片」的点击区",
+  !!introHit && introHit.rect.w >= scrT.width - scrT.pad * 2 - 1,
+  JSON.stringify(introHit && introHit.rect));
+var introOut = recIntro.textPuts.filter(function (p) {
+  return p[1] < introHit.rect.x - 1
+    || p[1] > introHit.rect.x + introHit.rect.w + 1
+    || p[2] < introHit.rect.y - 1
+    || p[2] > introHit.rect.y + introHit.rect.h + 1;
+});
+ok("卡片文字全部落在面板内", introOut.length === 0, JSON.stringify(introOut.slice(0, 3)));
+
+// 关掉卡片：不消耗回合、不掉血、不进敌方回合
+var hpBeforeIntro = bi1.player.hp;
+var turnBeforeIntro = bossB1.turn;
+var ehpBeforeIntro = bossB1.hp;
+var handledIntro = battleModalT.onAction({ id: "battle:intro" }, bi1, stubApp());
+ok("点一下就能关掉卡片", handledIntro === true && bossB1.introOpen === false);
+ok("关卡片不消耗回合、不掉血",
+  bi1.player.hp === hpBeforeIntro
+  && bossB1.turn === turnBeforeIntro
+  && bossB1.hp === ehpBeforeIntro
+  && bossB1.over === false,
+  "hp=" + bi1.player.hp + " turn=" + bossB1.turn);
+
+// 卡片开着时手指落在旧按钮位置：只能关卡，不能替他出招
+var bi3 = freshRun();
+stateApi.startBattle(bi3, "boss");
+var bossB3 = bi3.run.battle;
+var hp3 = bi3.player.hp;
+battleModalT.onAction({ id: "battle:precise" }, bi3, stubApp());
+ok("卡片开着时点到行动按钮只关卡，不替他出招",
+  bossB3.introOpen === false
+  && bossB3.hp === bossB3.maxHp
+  && bossB3.turn === 1
+  && bi3.player.hp === hp3,
+  "hp=" + bossB3.hp + "/" + bossB3.maxHp + " turn=" + bossB3.turn);
+
+var recAfterIntro = renderBattleTexts(bi1);
+ok("卡片关掉后面板恢复行动按钮",
+  recAfterIntro.texts.indexOf("精准射击") >= 0
+  && recAfterIntro.texts.indexOf("迎战") < 0,
+  JSON.stringify(recAfterIntro.texts.slice(0, 8)));
+
+// 存档往返：切后台时卡还开着，读回来必须是同一张卡
+var bi4 = freshRun();
+stateApi.startBattle(bi4, "boss");
+var savedIntro = storage.sanitizeRun(JSON.parse(JSON.stringify(bi4.run)));
+ok("登场卡的开合状态与预感能存档往返",
+  savedIntro.battle.introOpen === true
+  && savedIntro.battle.introHint === bi4.run.battle.introHint,
+  String(savedIntro.battle.introHint));
+
+var bi5 = freshRun();
+makeBattle(bi5, { boss: true, introOpen: false, introHint: "x" });
+var savedIntro2 = storage.sanitizeRun(JSON.parse(JSON.stringify(bi5.run)));
+ok("已经看过的卡不会被读档重新打开", savedIntro2.battle.introOpen === false);
+
+// 数据护栏：五个 Boss 的预感必须各不相同，且不许把机制直接写出来
+var bossHints = [];
+var bossNoHint = [];
+enemiesAllT.forEach(function (def) {
+  if (def.kind !== "boss") return;
+  if (!def.phase2 || !def.phase2.hint) bossNoHint.push(def.id);
+  else bossHints.push(def.phase2.hint);
+});
+ok("每个 Boss 都有预感", enemiesAllT.filter(function (d) { return d.kind === "boss"; }).length === 5
+  && bossNoHint.length === 0, JSON.stringify(bossNoHint));
+ok("五句预感互不相同", bossHints.length === 5
+  && bossHints.filter(function (h, i) { return bossHints.indexOf(h) === i; }).length === 5);
+ok("预感不剧透形态名（说破就变成说明书）",
+  bossHints.every(function (h) {
+    return ["双影", "查票", "过载", "脱轨", "换宿主", "第二阶段", "半血"].every(function (w) {
+      return h.indexOf(w) < 0;
+    });
+  }), JSON.stringify(bossHints));
+
 /* ---------------- 汇总 ---------------- */
 console.log("\n" + "=".repeat(46));
 console.log("通过 " + PASS + " / " + (PASS + FAIL));

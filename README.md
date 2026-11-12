@@ -12,7 +12,7 @@ Canvas 全自绘，无 DOM 依赖，无第三方库，纯 ES5（`var` 到底）�
 
 ```bash
 # 1) 无头回归（不需要任何环境，Node 直接跑）
-node tools/test-headless.js          # 208 项
+node tools/test-headless.js          # 254 项
 
 # 2) 数值平衡模拟（批量跑局，统计通关率与死亡分布）
 #    第三个参数是种子：做改前/改后对比时必须给同一个，否则 ±2.5pp 的随机抖动会误导判断
@@ -65,6 +65,7 @@ AppID 与广告位怎么申请、卡在哪一步，见 [`docs/DOUYIN_SETUP.md`](
 | `preview.html?modal=battle&fx=1&fxms=120` | 打一拳后冻在第 120ms，检查伤害飘字、粒子与出手动作 |
 | `preview.html?modal=battle&fx=1&act=defend` | 指定出手动作（`precise` / `power` / `defend` / `potion`） |
 | `preview.html?modal=battle&hp=6` | 把敌人血量压到 6%，看濒死姿态与喘息节奏 |
+| `preview.html?scene=route&modal=battle&enemy=riftWarden&intro=1` | 停在 Boss 登场卡（剪影 + 预感 + 迎战按钮） |
 | `preview.html?scene=route&modal=battle&enemy=riftWarden&phase=2` | 直接看 Boss 第二形态（形态名徽标 + 亮红血条 + 双影的第二具剪影） |
 | `preview.html?scene=route&modal=battle&enemy=ironWarden` | 指定敌人进战斗（看待机呼吸与受击帧） |
 | `preview.html?modal=battle&tele=charge` | 注入下回合预告（`charge` / `swarm` / `weave`），检查气泡排版与蓄力姿态 |
@@ -137,7 +138,7 @@ assets/
   audio/                 16 个音效 + 3 首 BGM（合计约 934 KB，程序合成，无版权风险）
 
 tools/
-  test-headless.js       无头回归（208 项）
+  test-headless.js       无头回归（254 项）
   sim-balance.js         批量模拟（局数/主题/种子），输出通关率与死亡分布
   gen-audio.py           程序合成音效与 BGM
   build-bundle.js        把 js/ 打成浏览器可跑的 bundle（仅本地预览用）
@@ -173,6 +174,8 @@ docs/                    架构 / 内容表 / 调参手册 / 上线清单 / 完�
 - **40 个敌人**（28 普通 + 7 精英 + 5 Boss），**14 种行为特性**：
   反扑、立盾、吸能、蓄势、重甲、吸血、群袭、镜影、自爆、统御、
   **织网（缠住削弱下一击）、寄生（挂卵孵化）、狂化（半血永久加攻）、赌徒（伤害大幅浮动）**
+- **Boss 登场卡**：开战前停一屏，剪影 + 名字 + 生命/每击 + 一句打法 + 一句「预感」
+  （预感只埋种子、不剧透形态，五句各不相同；关卡片不消耗回合）
 - **Boss 半血换第二阶段，五个 Boss 五套打法**：双影（两段攻击，防御只挡第一段）、
   查票（重复同一招加伤 45%）、过载（伤害 ×1.3 但每回合自损 5）、脱轨（35% 概率追加一击）、
   换宿主（每回合穿盾掉血，药剂只回一半）。换形态那回合不还手但立护盾，
@@ -197,7 +200,7 @@ docs/                    架构 / 内容表 / 调参手册 / 上线清单 / 完�
 
 | 手段 | 规模 | 结果 |
 |---|---|---|
-| `test-headless.js` | 208 项 | 208 / 208 通过 |
+| `test-headless.js` | 254 项 | 254 / 254 通过 |
 | `sim-balance.js` | 三套主题 × 3 个种子 × 1000 局 | 锈蚀 52.5% / 霜封 49.6% / 焚炉 46.7%（`sim-balance.js 1000 ember 20261111` 可复现） |
 
 测试覆盖：整机启动、全链路自动通关（Math.random 固定种子，结果可复现）、存档往返与迁移、脏档与越界点击、

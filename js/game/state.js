@@ -843,6 +843,16 @@ function startBattle(state, kind) {
     strikeUsed: false,
     lastCrit: false,
     intro: template.intro,
+    /**
+     * Boss 登场卡。
+     *
+     * 只有 Boss 才停这一下：普通战斗每局要打十几次，每次都插一屏就是纯摩擦；
+     * Boss 一局只有一次，停下来的成本可以忽略，换来的是「这一场不一样」的仪式感。
+     * 卡片上还会带一句 phase2.hint——不提任何机制，只是把第二形态的种子提前埋下，
+     * 让半血崩开那一刻变成「原来刚才那句话是这个意思」。
+     */
+    introOpen: template.kind === "boss",
+    introHint: template.phase2 && template.phase2.hint ? template.phase2.hint : null,
     hp: hp,
     maxHp: hp,
     damageRange: template.damageRange.slice(),
@@ -874,6 +884,20 @@ function startBattle(state, kind) {
   };
   state.current.modal = "battle";
   return run.battle;
+}
+
+/**
+ * 关掉 Boss 登场卡。
+ *
+ * 它刻意不是一次「战斗行动」：不动回合、不进敌方回合、不掉血。
+ * 如果做成行动，玩家在读卡时手抖一下就得白挨一击，而这一击和「读卡」毫无关系。
+ * 返回是否真的关掉了一张开着的卡，方便调用方决定要不要播音效。
+ */
+function dismissBattleIntro(state) {
+  var battle = state.run && state.run.battle;
+  if (!battle || !battle.introOpen) return false;
+  battle.introOpen = false;
+  return true;
 }
 
 function pushBattleLog(battle, text) {
@@ -2027,6 +2051,7 @@ module.exports = {
   travelTo: travelTo,
   // 战斗
   startBattle: startBattle,
+  dismissBattleIntro: dismissBattleIntro,
   battleAction: battleAction,
   enemyTurn: enemyTurn,
   calcPlayerDamage: calcPlayerDamage,

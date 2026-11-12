@@ -330,6 +330,10 @@ function sanitizeBattle(raw) {
     strikeUsed: raw.strikeUsed === true,
     lastCrit: raw.lastCrit === true,
     intro: typeof raw.intro === "string" ? raw.intro.slice(0, 80) : "",
+    // 登场卡开着时存档（比如切后台），读回来还得是开着的——否则玩家会看到
+    // 一张没有标题、没有「迎战」按钮的战斗面板，不知道自己在等什么
+    introOpen: raw.introOpen === true,
+    introHint: typeof raw.introHint === "string" ? raw.introHint.slice(0, 60) : null,
     hp: toInt(raw.hp, 0, maxHp, maxHp),
     maxHp: maxHp,
     damageRange: Array.isArray(raw.damageRange) && raw.damageRange.length === 2
