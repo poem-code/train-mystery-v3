@@ -5746,12 +5746,29 @@ function render(ctx, screen, state, animator, clock) {
     color: P.ink,
     maxWidth: nameMaxW
   });
+  /**
+   * Boss 第二形态的标记。
+   * 用徽标而不是「名字（第二阶段）」：名字改动会让玩家怀疑换了个敌人，
+   * 而事实是同一个东西裂开了。徽标只加后缀信息，不重命名。
+   */
+  if (battle.boss && battle.phase >= 2) {
+    var pw = draw.measure(ctx, "第二阶段", screen.fz(9), true) + screen.px(12);
+    var pchip = { x: right - pw, y: cursor + screen.px(9), w: pw, h: screen.px(16) };
+    draw.fillRR(ctx, pchip, "rgba(255,90,68,0.20)", screen.px(8));
+    draw.text(ctx, "第二阶段", pchip.x + pw / 2, pchip.y + screen.px(3), {
+      size: screen.fz(9),
+      align: "center",
+      bold: true,
+      color: "#FF7A66"
+    });
+  }
   cursor += screen.px(30);
 
   // 敌人血条
   var hpRect = { x: left, y: cursor, w: innerW, h: screen.px(9) };
   draw.bar(ctx, hpRect, battle.hp / battle.maxHp, {
-    color: battle.boss ? P.red : "#C8664F",
+    // 二形态换色：同一个血条，玩家扫一眼就知道「这不是刚才那个东西了」
+    color: battle.boss ? (battle.phase >= 2 ? "#FF5A44" : P.red) : "#C8664F",
     track: "rgba(255,255,255,0.10)"
   });
   cursor += hpRect.h + screen.px(4);
@@ -5806,7 +5823,9 @@ function render(ctx, screen, state, animator, clock) {
   var heroPanting = heroHpRatio < 0.32 ? 1 : 0;
 
   // 喘息 = 周期缩短 + 幅度加大；两者都只改节奏，不改任何玩法数值
-  var enemyBreath = Math.sin(breatheT * Math.PI * 2 / (2.6 / (1 + 0.7 * enemyPanting)));
+  // 第二形态再压一档：没到残血的 Boss 也已经在急促换气，这是「它认真了」的信号
+  var phaseRate = battle.phase >= 2 ? 1.25 : 1;
+  var enemyBreath = Math.sin(breatheT * Math.PI * 2 / (2.6 / (1 + 0.7 * enemyPanting) / phaseRate));
   var heroBreath = Math.sin(breatheT * Math.PI * 2 / (2.6 / (1 + 0.7 * heroPanting)) + Math.PI * 0.6);
   var enemyAmp = 2.2 * (1 + 0.55 * enemyPanting);
   var heroAmp = 1.6 * (1 + 0.55 * heroPanting);
@@ -5833,6 +5852,13 @@ function render(ctx, screen, state, animator, clock) {
     ? 0.5 + 0.5 * Math.sin(breatheT * Math.PI * 2 / 0.9)
     : 0;
   var gathering = tele && tele.kind === "swarm" ? 1 : 0;
+  /**
+   * 裂开的一瞬：横向撑开、纵向压扁，再收回去。
+   * 只有 420ms，但它是「外壳崩开」在剪影上的唯一证据——
+   * 光靠闪白和飘字，剪影不动的话这一下仍然像是界面在闪，而不是它在裂。
+   */
+  var breakP = animator.progress("bossPhase", linearEase);
+  var breaking = breakP < 1 ? Math.sin(breakP * Math.PI) : 0;
 
   /**
    * 玩家出手动作。此前点按钮只有飘字在动，剪影始终像雕塑——
@@ -5894,9 +5920,9 @@ function render(ctx, screen, state, animator, clock) {
         - charging * screen.px(1.2) * chargePulse,
       rot: 0.04 * charging + 0.05 * enemyDying,
       sx: 1 + 0.14 * squash + 0.06 * lunge - 0.07 * charging + 0.02 * chargePulse * charging
-        + 0.03 * gathering - 0.03 * enemyDying,
+        + 0.03 * gathering - 0.03 * enemyDying + 0.18 * breaking,
       sy: 1 - 0.12 * squash - 0.04 * lunge + 0.06 * charging - 0.02 * chargePulse * charging
-        - 0.02 * gathering - 0.06 * enemyDying
+        - 0.02 * gathering - 0.06 * enemyDying - 0.11 * breaking
     });
   draw.figure(ctx, heroX - hurt * screen.px(5) + lean * actW, stageCenter, screen.px(48),
     "hero", P.teal, "hero", {
@@ -6229,8 +6255,10 @@ function onAction(action, state, app) {
   var battleBefore = state.run && state.run.battle;
   var enemyHpBefore = battleBefore ? battleBefore.hp : 0;
   var enemyShieldBefore = battleBefore ? battleBefore.enemyShield : 0;
+  var phaseBefore = battleBefore ? (battleBefore.phase || 1) : 1;
   var playerHpBefore = state.player.hp;
   var result = stateApi.battleAction(state, command) || {};
+  var phaseBroke = !!battleBefore && battleBefore.phase > phaseBefore;
 
   // 出手音：不同行动给不同音色，让玩家闭着眼也能听出自己在干什么
   if (app.sound) {
@@ -6239,6 +6267,28 @@ function onAction(action, state, app) {
     else if (command === "execute") app.sound("crit", 0.95);
     else if (command === "escape") app.sound("select", 0.7);
     else app.sound("bow", 0.6);
+  }
+
+  // 换阶段是这一回合里最重要的事，压过其它所有反馈：
+  // 一闪、一震、一圈裂纹，玩家才知道刚才那一下打出了什么。
+  // 音效放在出手音之后，否则会被后面那句 app.sound("bow") 盖掉。
+  if (phaseBroke) {
+    var bp2 = hitPos();
+    if (fx) {
+      fx.flash("rgba(255,235,220,0.42)", 260);
+      fx.shake(px(7), 300);
+      fx.ring(bp2.x, bp2.y, { color: "#FF8B7A", to: px(130), life: 620, width: 3 });
+      fx.burst(bp2.x, bp2.y, {
+        count: 26, color: "#D8574A", speed: 260, life: 700, size: px(3)
+      });
+      // 飘字要抬得比伤害数字高得多：伤害数字从 y-8 往上飘 52px，
+      // 两个都在同一高度就会撞成一团「第二阶段-16」。
+      fx.float(bp2.x, bp2.y - px(58), "第二阶段", {
+        color: "#FF9C86", size: px(20), rise: px(24), bold: true
+      });
+    }
+    if (app.sound) app.sound("crit", 1);
+    if (app.animator) app.animator.start("bossPhase", 420);
   }
 
   // 出手动作：和音色指向同一件事。时长比音效尾巴略长，动作不会在半路僵住。
@@ -9831,6 +9881,9 @@ function startBattle(state, kind) {
     reward: { ether: template.reward.ether, gold: template.reward.gold },
     boss: template.kind === "boss",
     elite: template.kind === "elite",
+    // 1 = 完整形态，2 = 半血后的第二形态。只有 Boss 会变，其余永远是 1。
+    phase: 1,
+    phaseBreak: false,
     enemyShield: 0,
     playerShield: run.effects.firstTurnShield,
     turn: 1,
@@ -9899,7 +9952,39 @@ function dealEnemyDamage(run, battle, amount) {
   battle.hp = clamp(battle.hp - remaining, 0, battle.maxHp);
   var dealt = before - battle.hp;
   run.stats.damageDealt += dealt;
+  // 阶段检查挂在这里，因为它是「所有对敌伤害」的唯一收口。
+  // 挂到各个攻击分支上就得加五处，漏一处玩家就会遇到打穿半血却没变阶段的 Boss。
+  if (dealt > 0) checkBossPhase(battle);
   return { dealt: dealt, absorbed: Math.min(before, amount) - dealt };
+}
+
+/**
+ * Boss 换阶段：血量首次跌破半血时进入第二阶段。
+ *
+ * 单场 Boss 战原本只是「血更厚的普通怪」——打到最后三分之一的回合和第一回合
+ * 长得一模一样，赢的那一刻没有「我把一个东西打崩了」的感觉。
+ *
+ * 三条设计约束：
+ * 1. **换阶段那回合敌人不出手**。变强如果不给缓冲，玩家的体感是「快赢了突然被打死」；
+ *    给一回合，同一件事就变成「我把它打崩了，它正在重组」。
+ * 2. **旧蓄势作废**。否则转换前攒的层数会在转换后立刻兑现，变成一记毫无预告的重击。
+ * 3. **一击致死不触发**。血条直接归零时没有第二阶段可言，否则会画出「刚裂开就死了」。
+ */
+function checkBossPhase(battle) {
+  if (!battle || !battle.boss || battle.over) return false;
+  if (battle.phase >= 2) return false;
+  if (battle.hp <= 0) return false;
+  if (battle.hp > battle.maxHp * 0.5) return false;
+
+  battle.phase = 2;
+  battle.enemyCharge = 0;
+  battle.telegraph = null;
+  battle.phaseBreak = true;
+  battle.damageRange = [battle.damageRange[0] + 3, battle.damageRange[1] + 3];
+  // 这里不写日志：dealEnemyDamage 在「命中」那行 push 之前跑，
+  // 现在写会变成「崩开 → 命中」，玩家从上往下读就是反的。
+  // 交给 enemyTurn 的 phaseBreak 分支，按时间顺序补上。
+  return true;
 }
 
 /**
@@ -9913,7 +9998,10 @@ function dealEnemyDamage(run, battle, amount) {
 function writeTelegraph(battle) {
   if (!battle || battle.over) return null;
   battle.telegraph = null;
-  if (battle.turn % 3 !== 0) return null;
+  // 第二形态的节奏：每 2 回合蓄一次（原本每 3 回合）。
+  // 这是换阶段真正的「变强」——不是加成数字变大，而是玩家能反应的窗口变短。
+  var cadence = battle.phase >= 2 ? 2 : 3;
+  if (battle.turn % cadence !== 0) return null;
 
   var t = null;
   if (battle.trait === "assassin" || battle.boss) {
@@ -9950,6 +10038,29 @@ function enemyTurn(state) {
   var run = state.run;
   var battle = run.battle;
   if (!battle || battle.over) return;
+
+  /**
+   * 换阶段的那一回合：它只顾重组躯壳，不还手，但立起一层护盾。
+   *
+   * 这一回合是换阶段能被接受的全部原因。直接加难度会让玩家觉得
+   * 「我快赢了它突然变强」；空出一回合再变强，读到的就是
+   * 「我把它打崩了，它正在爬起来」。护盾是补上这回合少掉的输出压力，
+   * 让跳过不成为纯粹的送分。
+   */
+  if (battle.phaseBreak) {
+    battle.phaseBreak = false;
+    battle.enemyShield += 12;
+    battle.lastEnemyDamage = 0;
+    // 日志是倒序显示的（最新在最上），所以要先 push「崩开」再 push「重组」，
+    // 玩家从上往下读才是「重组 / 崩开 / 刚才那一下命中」。
+    pushBattleLog(battle, battle.name + " 的外壳崩开，露出里面的第二层——它比刚才更凶了。");
+    pushBattleLog(battle, battle.name + " 停在原地重组躯壳，暂时没有还手。");
+    writeTelegraph(battle);
+    battle.turn += 1;
+    run.stats.turns += 1;
+    battle.playerShield = 0;
+    return;
+  }
 
   var affix = battle.affix ? affixesApi.getById(battle.affix) : null;
   var dailyMul = modsOf(run).enemyDamageMul;
@@ -11216,6 +11327,10 @@ function sanitizeBattle(raw) {
     },
     boss: raw.boss === true,
     elite: raw.elite === true,
+    // 阶段必须存下来：读档丢掉它，一场打到一半的 Boss 战会退回第一形态，
+    // 伤害区间也跟着回退——玩家辛苦打掉的半管血等于白打
+    phase: toInt(raw.phase, 1, 2, 1),
+    phaseBreak: raw.phaseBreak === true,
     enemyShield: toInt(raw.enemyShield, 0, 999, 0),
     playerShield: toInt(raw.playerShield, 0, 999, 0),
     turn: toInt(raw.turn, 1, 999, 1),

@@ -266,6 +266,16 @@
         if (wantTele === "charge") state.run.battle.enemyCharge = 1;
       }
 
+      // phase=2 直接落到 Boss 第二形态（徽标、血条换色、更急的呼吸）
+      if (q.get("phase") === "2" && state.run.battle.boss) {
+        state.run.battle.phase = 2;
+        state.run.battle.damageRange = [
+          state.run.battle.damageRange[0] + 3,
+          state.run.battle.damageRange[1] + 3
+        ];
+        state.run.battle.logs.unshift(state.run.battle.name + " 的外壳崩开，露出里面的第二层——它比刚才更凶了。");
+      }
+
       // hp=8 把敌人血量压到 8%，用来检查残血喘息与濒死颤抖
       var wantHpPct = parseFloat(q.get("hp"));
       if (!isNaN(wantHpPct) && wantHpPct > 0 && wantHpPct < 100) {
