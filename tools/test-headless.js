@@ -452,7 +452,7 @@ function makeBattle(state, props) {
     trait: "none", intro: "", hp: 100, maxHp: 100, damageRange: [0, 0],
     reward: { ether: 0, gold: 0 }, boss: false, elite: false,
     enemyShield: 0, playerShield: 0, turn: 1, defenseStance: false,
-    enemyCharge: 0, over: false, result: null, logs: []
+    enemyCharge: 0, phase: 1, phaseBreak: false, over: false, result: null, logs: []
   };
   var key;
   for (key in props) {
@@ -918,6 +918,89 @@ longTele.battle.telegraph = { kind: "weave", label: "很长很长的标签名字
 var clampedTele = storage.sanitizeRun(longTele).battle.telegraph;
 ok("预告文案按长度截断", clampedTele.label.length <= 6 && clampedTele.detail.length <= 20,
   clampedTele.label.length + "/" + clampedTele.detail.length);
+
+section("Boss 换阶段");
+
+// 半血触发：Boss 100 血，打掉 55 点后进入第二形态。damageRange 整体 +3 是
+// 「它真的变狠了」的唯一来源，别的地方都不许偷偷改伤害。
+var pb1 = freshRun();
+var bPhase = makeBattle(pb1, { boss: true, hp: 100, maxHp: 100, damageRange: [10, 10] });
+bPhase.hp = 56; // 下一击 20 点 → 36，跌破半血
+stateApi.battleAction(pb1, "precise");
+ok("Boss 跌破半血进入第二阶段", bPhase.phase === 2, "phase=" + bPhase.phase);
+ok("第二阶段伤害区间整体 +3",
+  bPhase.damageRange[0] === 13 && bPhase.damageRange[1] === 13,
+  bPhase.damageRange.join("-"));
+ok("换阶段会写下日志",
+  bPhase.logs.some(function (t) { return t.indexOf("第二层") >= 0; }),
+  bPhase.logs[0]);
+
+// 给缓冲：那一回合它不还手，但立起护盾。缺了这一回合，玩家体感就是
+// 「快赢了突然被打死」——同一件事的两种味道，差别全在这里。
+var pb2 = freshRun();
+var bBreak = makeBattle(pb2, {
+  boss: true, hp: 30, maxHp: 100, damageRange: [10, 10], boss_: true
+});
+stateApi.battleAction(pb2, "precise"); // 20 点 → 10，触发换阶段
+ok("换阶段那回合敌人不出手（玩家不掉血）", pb2.player.hp === 100, "玩家 " + pb2.player.hp);
+ok("换阶段那回合敌人立起护盾", bBreak.enemyShield === 12, "护盾 " + bBreak.enemyShield);
+ok("换阶段标记只消费一次", bBreak.phaseBreak === false);
+
+// 旧蓄势必须在换阶段时作废：留着的话，转换后第一下就是毫无预告的重击
+var pb3 = freshRun();
+var bCharge = makeBattle(pb3, {
+  boss: true, hp: 30, maxHp: 100, damageRange: [10, 10], enemyCharge: 2,
+  telegraph: { kind: "charge", label: "蓄势", detail: "下一击 +24", log: "" }
+});
+stateApi.battleAction(pb3, "precise");
+ok("换阶段清掉之前攒的蓄势", bCharge.enemyCharge === 0 && bCharge.telegraph === null,
+  "charge=" + bCharge.enemyCharge + " tele=" + JSON.stringify(bCharge.telegraph));
+
+// 一击打死不该出现「刚裂开就死」：血条归零时没有第二形态可言
+var pb4 = freshRun();
+var bKill = makeBattle(pb4, { boss: true, hp: 18, maxHp: 100, damageRange: [10, 10] });
+stateApi.battleAction(pb4, "precise");
+ok("一击打死的 Boss 不进入第二阶段", bKill.phase === 1, "phase=" + bKill.phase);
+
+// 只有 Boss 会变：普通怪半血只是个数字
+var pb5 = freshRun();
+var bNormal = makeBattle(pb5, { boss: false, hp: 30, maxHp: 100, damageRange: [10, 10] });
+stateApi.battleAction(pb5, "precise");
+ok("普通敌人不会换阶段", bNormal.phase === 1 && bNormal.damageRange[0] === 10,
+  "phase=" + bNormal.phase + " dmg=" + bNormal.damageRange.join("-"));
+
+// 第二形态的节奏：每 2 回合蓄势（原每 3 回合）。这是「窗口变短」而不是「数字变大」，
+// 也是玩家真正会感到压迫的地方
+var pb6 = freshRun();
+var bCadence = makeBattle(pb6, { boss: true, hp: 100, maxHp: 100, damageRange: [10, 10], phase: 2 });
+bCadence.turn = 3;
+stateApi.enemyTurn(pb6);
+ok("第二阶段在奇数回合不蓄势", bCadence.telegraph === null,
+  JSON.stringify(bCadence.telegraph));
+bCadence.turn = 4;
+stateApi.enemyTurn(pb6);
+ok("第二阶段每 2 回合蓄势一次",
+  !!bCadence.telegraph && bCadence.telegraph.kind === "charge",
+  JSON.stringify(bCadence.telegraph));
+
+// 存档往返：丢掉 phase 等于把一场打到一半的 Boss 战退回第一形态，
+// 伤害区间也跟着回退，玩家辛苦打掉的半管血白打
+var pb7 = freshRun();
+makeBattle(pb7, {
+  boss: true, phase: 2, hp: 40, maxHp: 100, damageRange: [13, 13],
+  logs: ["x"]
+});
+var savedPhase = storage.sanitizeRun(JSON.parse(JSON.stringify(pb7.run)));
+ok("第二形态能存档往返",
+  savedPhase.battle.phase === 2
+    && savedPhase.battle.damageRange[0] === 13,
+  "phase=" + savedPhase.battle.phase + " dmg=" + savedPhase.battle.damageRange.join("-"));
+
+var dirtyPhase = JSON.parse(JSON.stringify(pb7.run));
+dirtyPhase.battle.phase = 7;
+ok("非法阶段值被夹回合法区间",
+  storage.sanitizeRun(dirtyPhase).battle.phase === 2,
+  "phase=" + storage.sanitizeRun(dirtyPhase).battle.phase);
 
 section("新效果字段行为");
 

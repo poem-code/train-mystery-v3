@@ -849,6 +849,9 @@ function startBattle(state, kind) {
     reward: { ether: template.reward.ether, gold: template.reward.gold },
     boss: template.kind === "boss",
     elite: template.kind === "elite",
+    // 1 = 完整形态，2 = 半血后的第二形态。只有 Boss 会变，其余永远是 1。
+    phase: 1,
+    phaseBreak: false,
     enemyShield: 0,
     playerShield: run.effects.firstTurnShield,
     turn: 1,
@@ -917,7 +920,39 @@ function dealEnemyDamage(run, battle, amount) {
   battle.hp = clamp(battle.hp - remaining, 0, battle.maxHp);
   var dealt = before - battle.hp;
   run.stats.damageDealt += dealt;
+  // 阶段检查挂在这里，因为它是「所有对敌伤害」的唯一收口。
+  // 挂到各个攻击分支上就得加五处，漏一处玩家就会遇到打穿半血却没变阶段的 Boss。
+  if (dealt > 0) checkBossPhase(battle);
   return { dealt: dealt, absorbed: Math.min(before, amount) - dealt };
+}
+
+/**
+ * Boss 换阶段：血量首次跌破半血时进入第二阶段。
+ *
+ * 单场 Boss 战原本只是「血更厚的普通怪」——打到最后三分之一的回合和第一回合
+ * 长得一模一样，赢的那一刻没有「我把一个东西打崩了」的感觉。
+ *
+ * 三条设计约束：
+ * 1. **换阶段那回合敌人不出手**。变强如果不给缓冲，玩家的体感是「快赢了突然被打死」；
+ *    给一回合，同一件事就变成「我把它打崩了，它正在重组」。
+ * 2. **旧蓄势作废**。否则转换前攒的层数会在转换后立刻兑现，变成一记毫无预告的重击。
+ * 3. **一击致死不触发**。血条直接归零时没有第二阶段可言，否则会画出「刚裂开就死了」。
+ */
+function checkBossPhase(battle) {
+  if (!battle || !battle.boss || battle.over) return false;
+  if (battle.phase >= 2) return false;
+  if (battle.hp <= 0) return false;
+  if (battle.hp > battle.maxHp * 0.5) return false;
+
+  battle.phase = 2;
+  battle.enemyCharge = 0;
+  battle.telegraph = null;
+  battle.phaseBreak = true;
+  battle.damageRange = [battle.damageRange[0] + 3, battle.damageRange[1] + 3];
+  // 这里不写日志：dealEnemyDamage 在「命中」那行 push 之前跑，
+  // 现在写会变成「崩开 → 命中」，玩家从上往下读就是反的。
+  // 交给 enemyTurn 的 phaseBreak 分支，按时间顺序补上。
+  return true;
 }
 
 /**
@@ -931,7 +966,10 @@ function dealEnemyDamage(run, battle, amount) {
 function writeTelegraph(battle) {
   if (!battle || battle.over) return null;
   battle.telegraph = null;
-  if (battle.turn % 3 !== 0) return null;
+  // 第二形态的节奏：每 2 回合蓄一次（原本每 3 回合）。
+  // 这是换阶段真正的「变强」——不是加成数字变大，而是玩家能反应的窗口变短。
+  var cadence = battle.phase >= 2 ? 2 : 3;
+  if (battle.turn % cadence !== 0) return null;
 
   var t = null;
   if (battle.trait === "assassin" || battle.boss) {
@@ -968,6 +1006,29 @@ function enemyTurn(state) {
   var run = state.run;
   var battle = run.battle;
   if (!battle || battle.over) return;
+
+  /**
+   * 换阶段的那一回合：它只顾重组躯壳，不还手，但立起一层护盾。
+   *
+   * 这一回合是换阶段能被接受的全部原因。直接加难度会让玩家觉得
+   * 「我快赢了它突然变强」；空出一回合再变强，读到的就是
+   * 「我把它打崩了，它正在爬起来」。护盾是补上这回合少掉的输出压力，
+   * 让跳过不成为纯粹的送分。
+   */
+  if (battle.phaseBreak) {
+    battle.phaseBreak = false;
+    battle.enemyShield += 12;
+    battle.lastEnemyDamage = 0;
+    // 日志是倒序显示的（最新在最上），所以要先 push「崩开」再 push「重组」，
+    // 玩家从上往下读才是「重组 / 崩开 / 刚才那一下命中」。
+    pushBattleLog(battle, battle.name + " 的外壳崩开，露出里面的第二层——它比刚才更凶了。");
+    pushBattleLog(battle, battle.name + " 停在原地重组躯壳，暂时没有还手。");
+    writeTelegraph(battle);
+    battle.turn += 1;
+    run.stats.turns += 1;
+    battle.playerShield = 0;
+    return;
+  }
 
   var affix = battle.affix ? affixesApi.getById(battle.affix) : null;
   var dailyMul = modsOf(run).enemyDamageMul;

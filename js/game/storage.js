@@ -330,6 +330,10 @@ function sanitizeBattle(raw) {
     },
     boss: raw.boss === true,
     elite: raw.elite === true,
+    // 阶段必须存下来：读档丢掉它，一场打到一半的 Boss 战会退回第一形态，
+    // 伤害区间也跟着回退——玩家辛苦打掉的半管血等于白打
+    phase: toInt(raw.phase, 1, 2, 1),
+    phaseBreak: raw.phaseBreak === true,
     enemyShield: toInt(raw.enemyShield, 0, 999, 0),
     playerShield: toInt(raw.playerShield, 0, 999, 0),
     turn: toInt(raw.turn, 1, 999, 1),
