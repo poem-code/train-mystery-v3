@@ -11,9 +11,16 @@ var ui = require("./ui");
 var draw = require("./draw");
 var tween = require("./tween");
 var fxApi = require("./fx");
+var metricsApi = require("./metrics");
 
 function createEngine(options) {
-  var ctx = options.ctx;
+  /**
+   * 绘制指令计数：包一层 ctx，对场景/弹窗完全透明（它们拿到的还是同一个 ctx 接口）。
+   * `instrument: false` 可以整层关掉，计数退化为 0，渲染行为不变——
+   * 留在真机上哪天这层转发变贵时的退路。
+   */
+  var metrics = options.instrument === false ? null : metricsApi.instrument(options.ctx);
+  var ctx = metrics ? metrics.ctx : options.ctx;
   var canvas = options.canvas;
   var platform = options.platform;
   var screen = options.screen;
@@ -34,7 +41,7 @@ function createEngine(options) {
    * 帧统计：低端机上「卡不卡」需要能被量出来，而不是靠感觉。
    * 只做计数与最近一次的耗时，不参与渲染，也不占额外定时器。
    */
-  var perf = { frames: 0, slowFrames: 0, renderMs: 0, worstRenderMs: 0, sampleStart: 0, fps: 0, windowFrames: 0, paints: 0 };
+  var perf = { frames: 0, slowFrames: 0, renderMs: 0, worstRenderMs: 0, sampleStart: 0, fps: 0, windowFrames: 0, paints: 0, drawCalls: 0, worstDrawCalls: 0, drawPaints: 0 };
   var dirty = true;
   var lastFrameAt = 0;
   var elapsed = 0;
@@ -102,6 +109,7 @@ function createEngine(options) {
     var state = getState();
     elapsed += 1;
     perf.paints += 1;
+    if (metrics) metrics.reset();
     ui.beginFrame(screen, elapsed);
 
     var sceneId = getSceneId(state);
@@ -147,6 +155,14 @@ function createEngine(options) {
         align: "center",
         color: "#FFFFFF"
       });
+    }
+
+    // 计数放在 try 之外：渲染中途抛异常时，这一帧的指令数同样是真实发生的，
+    // 记下来才能看出「异常帧是不是画得比平时多」。
+    if (metrics) {
+      perf.drawCalls = metrics.calls();
+      perf.drawPaints = metrics.paints();
+      if (perf.drawCalls > perf.worstDrawCalls) perf.worstDrawCalls = perf.drawCalls;
     }
   }
 
@@ -310,10 +326,22 @@ function createEngine(options) {
     fx: fx,
     playSound: playSound,
     setAudio: function (next) { audio = next; },
-    /** 诊断用：最近一秒帧率、渲染耗时、慢帧数 */
+    /** 诊断用：最近一秒帧率、渲染耗时、慢帧数、单帧绘制指令数 */
     getPerf: function () {
       return "fps=" + perf.fps + " 渲染=" + perf.renderMs + "ms(最差 " + perf.worstRenderMs +
-        "ms) 帧数=" + perf.frames + " 慢帧=" + perf.slowFrames;
+        "ms) 绘制=" + perf.drawPaints + "/" + perf.drawCalls + "(最差 " + perf.worstDrawCalls +
+        ") 帧数=" + perf.frames + " 慢帧=" + perf.slowFrames;
+    },
+    /** 诊断用：上一帧的绘制指令数（测试用它给「不许画得更多」上闸） */
+    getDrawCalls: function () {
+      return perf.drawCalls;
+    },
+    /** 诊断用：上一帧里真正落像素的调用数（fill/stroke/文字/贴图） */
+    getDrawPaints: function () {
+      return perf.drawPaints;
+    },
+    getWorstDrawCalls: function () {
+      return perf.worstDrawCalls;
     },
     /** 诊断用：累计绘制次数（待机节流是否生效靠它量） */
     getPaintCount: function () {

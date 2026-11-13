@@ -2151,6 +2151,219 @@ ok("每个 Boss 的预感都有呼应（埋了就该收）", cbMissing.length ==
 ok("呼应写得像台词而不是规则说明", cbRuleHits.length === 0,
   JSON.stringify(cbRuleHits));
 
+/* ---------------- 绘制预算 ---------------- */
+
+section("绘制预算（单帧指令数）");
+
+var metricsApi = require("../js/core/metrics");
+var createEngine = require("../js/core/engine");
+var registry = require("../js/game/registry");
+var screenApi = require("../js/core/screen");
+var platformApi = require("../js/platform/platform");
+
+/**
+ * 两档预算，口径不同，别混：
+ * - `PAINTS`：真正落像素的调用（fill / stroke / 文字 / 贴图）。规格书那句「单帧 ≤400」
+ *   说的就是这一档——一次 fill 才是一次真正的绘制提交。
+ * - `CALLS`：含路径构造与 save/restore 的全部指令。它不直接等于开销，但它是**回归护栏**：
+ *   某次改动如果让一帧从 900 条涨到 1800 条，多半是无意中把背景画了两遍。
+ */
+var BUDGET_PAINTS = 400;
+// 护栏取实测峰值的 1.2 倍：这个数会随粒子数量与动画相位波动（实测 960—1110），
+// 卡在实测值上必然偶发假红；但超过 1300 就不是波动了，是真的多画了一层。
+var BUDGET_CALLS = 1300;
+
+function budgetRig(modalId, battleProps) {
+  var st = stateApi.createDefaultState(Date.now());
+  stateApi.startRun(st, Date.now());
+  st.player.baseAttack = 16;
+  st.current.scene = "route";
+  if (modalId) {
+    var battle = {
+      kind: "boss", enemyId: "riftWarden", name: "裂隙看守者", figure: "overlord",
+      color: "#C0564A", trait: "armored", intro: "", hp: 60, maxHp: 120,
+      damageRange: [12, 18], reward: { ether: 90, gold: 4 }, boss: true, elite: false,
+      enemyShield: 0, playerShield: 0, turn: 3, defenseStance: false,
+      enemyCharge: 0, phase: 1, phaseBreak: false, over: false, result: null, logs: []
+    };
+    var key;
+    for (key in battleProps || {}) {
+      if (Object.prototype.hasOwnProperty.call(battleProps, key)) battle[key] = battleProps[key];
+    }
+    st.run.battle = battle;
+    st.current.modal = modalId;
+  }
+  var canvas = platformApi.createStubCanvas(375, 812);
+  var engine = createEngine({
+    canvas: canvas,
+    ctx: canvas.getContext("2d"),
+    screen: screenApi.createScreen({ screenWidth: 375, screenHeight: 812 }),
+    platform: platformApi,
+    scenes: registry.scenes,
+    modals: registry.modals,
+    getState: function () { return st; },
+    getSceneId: function () { return st.current.scene; },
+    getModalId: function () { return st.current.modal; },
+    dispatch: function () {}
+  });
+  return engine;
+}
+
+// 满特效帧：Boss 二阶段 + 预告气泡 + 蓄力姿态 + 粒子，是最重的一帧
+var heavyEngine = budgetRig("battle", {
+  phase: 2, phaseHits: 2, phaseLabel: "双影",
+  telegraph: { kind: "charge", label: "蓄势重击", detail: "下一击 +8" }
+});
+var heavyPaints = 0;
+var heavyCalls = 0;
+var fi;
+for (fi = 0; fi < 30; fi += 1) {
+  heavyEngine.__tick(16);
+  if (heavyEngine.getDrawPaints() > heavyPaints) heavyPaints = heavyEngine.getDrawPaints();
+  if (heavyEngine.getDrawCalls() > heavyCalls) heavyCalls = heavyEngine.getDrawCalls();
+}
+ok("战斗最重帧的光栅化调用在预算内（≤" + BUDGET_PAINTS + "）",
+  heavyPaints > 0 && heavyPaints <= BUDGET_PAINTS, "实测 " + heavyPaints);
+ok("战斗最重帧的指令总数没越过回归护栏（≤" + BUDGET_CALLS + "）",
+  heavyCalls > 0 && heavyCalls <= BUDGET_CALLS, "实测 " + heavyCalls + " / 光栅 " + heavyPaints);
+
+var homeEngine = budgetRig(null, null);
+homeEngine.__tick(16);
+ok("首页单帧光栅化调用在预算内", homeEngine.getDrawPaints() > 0 && homeEngine.getDrawPaints() <= BUDGET_PAINTS,
+  "实测 " + homeEngine.getDrawPaints());
+
+// 计数必须是「这一帧」的量，不是累计值：脏渲染下同一屏连画两帧，数字应当一致
+var steadyA = homeEngine.getDrawCalls();
+homeEngine.__tick(16);
+var steadyB = homeEngine.getDrawCalls();
+ok("绘制计数每帧清零（不是累计值）", steadyA === steadyB, steadyA + " vs " + steadyB);
+
+/**
+ * 包装层最怕的是「漏了一个方法」——漏了就是 TypeError，
+ * 而这类错会在某个没人走到的分支里炸。用 stub ctx 的方法全集做对照。
+ */
+var probeCanvas = platformApi.createStubCanvas(375, 812);
+var probeCtx = probeCanvas.getContext("2d");
+var wrapped = metricsApi.instrument(probeCtx);
+var lost = [];
+var member;
+for (member in probeCtx) {
+  if (typeof probeCtx[member] === "function" && typeof wrapped.ctx[member] !== "function") {
+    lost.push(member);
+  }
+}
+ok("包装后的 ctx 没有漏掉任何原生方法", lost.length === 0, JSON.stringify(lost));
+
+// 转发要真的到位：计数 +1 的同时，目标也必须被打到
+var forwardCanvas = platformApi.createStubCanvas(375, 812);
+var forwardCtx = forwardCanvas.getContext("2d");
+var forwardHits = 0;
+forwardCtx.fill = function () { forwardHits += 1; };
+forwardCtx.fillRect = function () { forwardHits += 1; };
+var fw = metricsApi.instrument(forwardCtx);
+fw.ctx.fill();
+fw.ctx.fillRect(0, 0, 1, 1);
+fw.ctx.beginPath();
+ok("包装层把调用原样转发给真 ctx", forwardHits === 2, "落笔 " + forwardHits);
+ok("光栅计数只数落像素的那几个（路径构造不计）",
+  fw.paints() === 2 && fw.calls() === 3, fw.paints() + "/" + fw.calls());
+
+ok("诊断串里带上了绘制数", /绘制=\d+\/\d+/.test(heavyEngine.getPerf()), heavyEngine.getPerf());
+
+/* ---------------- 最小触控区 ---------------- */
+
+section("最小触控区（44×44）");
+
+var uiApi = require("../js/core/ui");
+
+function touchRig(w, h) {
+  var screen = screenApi.createScreen({ screenWidth: w, screenHeight: h, pixelRatio: 2 });
+  uiApi.beginFrame(screen, 1);
+  return screen;
+}
+
+// 1. 小胶囊被外扩到最小触控尺寸
+var tScreen = touchRig(390, 844);
+uiApi.pushHit({ id: "tiny", rect: { x: 100, y: 200, w: 58, h: 20 }, kind: "chip" });
+var tinyHit = uiApi.getHits()[0];
+ok("小于 44 的命中区被外扩", tinyHit.rect.w >= 44 && tinyHit.rect.h >= 44,
+  tinyHit.rect.w + "x" + tinyHit.rect.h);
+ok("外扩以原矩形中心为准", Math.round(tinyHit.rect.x + tinyHit.rect.w / 2) === Math.round(100 + 29) &&
+  Math.round(tinyHit.rect.y + tinyHit.rect.h / 2) === 210,
+  (tinyHit.rect.x + tinyHit.rect.w / 2) + "," + (tinyHit.rect.y + tinyHit.rect.h / 2));
+
+// 2. 贴着屏幕边缘的小控件，外扩后不许越界（越界等于把点击送给屏幕外）
+touchRig(390, 844);
+uiApi.pushHit({ id: "edge", rect: { x: 0, y: 6, w: 30, h: 24 }, kind: "chip" });
+var edgeHit = uiApi.getHits()[0];
+ok("外扩后不越出屏幕左/上边界", edgeHit.rect.x >= 0 && edgeHit.rect.y >= 0,
+  edgeHit.rect.x + "," + edgeHit.rect.y);
+
+// 3. 已经注册的大命中区优先：外扩不许吃掉别人的点击
+touchRig(390, 844);
+uiApi.pushHit({ id: "bigCard", rect: { x: 60, y: 180, w: 200, h: 80 }, kind: "card" });
+uiApi.pushHit({ id: "smallChip", rect: { x: 120, y: 200, w: 40, h: 20 }, kind: "chip" });
+var chipAfter = uiApi.getHits()[1];
+ok("外扩会与大命中区冲突时保持原样（不抢点击）",
+  chipAfter.rect.w === 40 && chipAfter.rect.h === 20,
+  chipAfter.rect.w + "x" + chipAfter.rect.h);
+
+// 4. 本来就够大的不被动
+touchRig(390, 844);
+uiApi.pushHit({ id: "normal", rect: { x: 20, y: 100, w: 160, h: 48 }, kind: "button" });
+ok("够大的命中区原样保留",
+  uiApi.getHits()[0].rect.w === 160 && uiApi.getHits()[0].rect.h === 48);
+
+// 5. 外扩只改命中区，不改视觉：命中测试要能在原矩形中心之外、新命中区之内命中
+touchRig(390, 844);
+uiApi.pushHit({ id: "pad", rect: { x: 200, y: 300, w: 60, h: 20 }, kind: "chip" });
+var padded = uiApi.getHits()[0].rect;
+var hitAbove = uiApi.hitTest(230, 300 - 8);
+ok("外扩出来的位置也能点中（手指偏一点也不丢）",
+  hitAbove && hitAbove.id === "pad", hitAbove ? hitAbove.id : "null");
+ok("外扩不会把点击吸到矩形外太远", !uiApi.hitTest(230, 300 - 30),
+  "命中 " + JSON.stringify(uiApi.hitTest(230, 300 - 30) && uiApi.hitTest(230, 300 - 30).id));
+
+/* ---------------- 分享图 ---------------- */
+
+section("分享图（E2）");
+
+var textApi = require("../js/game/data/text");
+var fs = require("fs");
+var pathApi = require("path");
+
+/**
+ * 路径写错、图没提交、比例换成 16:9——这三种失效都不会报错，
+ * 只会在真机上「分享出去没有图」。所以这里直接把文件读出来量。
+ */
+function shareImageSize(rel) {
+  var full = pathApi.join(__dirname, "..", rel);
+  if (!fs.existsSync(full)) return null;
+  var buf = fs.readFileSync(full);
+  if (buf.length < 24 || buf.toString("ascii", 1, 4) !== "PNG") return null;
+  return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20), bytes: buf.length };
+}
+
+var shareKeys = ["imageCleared", "imageFailed", "imageDaily"];
+var shareMissing = [];
+var shareWrongRatio = [];
+var shareTooBig = [];
+shareKeys.forEach(function (key) {
+  var size = shareImageSize(textApi.share[key]);
+  if (!size) {
+    shareMissing.push(key);
+    return;
+  }
+  // 5:4 是抖音分享卡的推荐比例；横竖错位会被裁成一条
+  if (Math.abs(size.w / size.h - 5 / 4) > 0.02) shareWrongRatio.push(key + " " + size.w + "x" + size.h);
+  if (size.bytes > 200 * 1024) shareTooBig.push(key + " " + Math.round(size.bytes / 1024) + "KB");
+});
+
+ok("三张分享图都在包里", shareMissing.length === 0, JSON.stringify(shareMissing));
+ok("分享图是 5:4（分享卡比例）", shareWrongRatio.length === 0, JSON.stringify(shareWrongRatio));
+ok("单张分享图不超过 200KB", shareTooBig.length === 0, JSON.stringify(shareTooBig));
+ok("每日挑战有独立分享文案", typeof textApi.share.daily === "string" && textApi.share.daily.length > 8);
+
 /* ---------------- 汇总 ---------------- */
 console.log("\n" + "=".repeat(46));
 console.log("通过 " + PASS + " / " + (PASS + FAIL));

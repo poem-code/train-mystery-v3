@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>分享图生成 · 列车秘境</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #0A141C; }
+  .card {
+    position: relative;
+    width: 500px;
+    height: 400px;
+    overflow: hidden;
+    background: radial-gradient(120% 90% at 78% 18%, #24384A 0%, #16232E 46%, #0A141C 100%);
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    color: #E8F0F4;
+  }
+  /* 三道车厢横纹：与游戏内的背景同一套语言（远雾纹 / 中光带 / 近扶手） */
+  .rail { position: absolute; left: 0; right: 0; height: 1px; background: rgba(232,240,244,0.06); }
+  .rail.r1 { top: 172px; }
+  .rail.r2 { top: 232px; }
+  .rail.r3 { top: 318px; }
+  .beam {
+    position: absolute; left: -10%; top: -30%; width: 62%; height: 190%;
+    background: linear-gradient(90deg, rgba(126,216,203,0.10), rgba(126,216,203,0));
+    transform: rotate(12deg);
+  }
+  .glow {
+    position: absolute; right: 6px; top: 30px; width: 250px; height: 250px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(216,87,74,0.30) 0%, rgba(216,87,74,0.10) 42%, rgba(216,87,74,0) 70%);
+  }
+  svg.fig { position: absolute; right: -26px; top: 26px; opacity: 0.92;
+    filter: drop-shadow(0 0 18px rgba(240,160,140,0.35)); }
+  .tag {
+    position: absolute; left: 44px; top: 62px;
+    font-size: 15px; letter-spacing: 3px; color: #7ED8CB; font-weight: 700;
+  }
+  .big {
+    position: absolute; left: 44px; top: 92px;
+    font-size: 54px; font-weight: 800; letter-spacing: 2px; line-height: 1.06;
+    color: #F2F7F9;
+  }
+  .sub {
+    position: absolute; left: 46px; top: 214px;
+    font-size: 18px; color: #A9BEC9; letter-spacing: 1px;
+  }
+  .line {
+    position: absolute; left: 46px; top: 246px; width: 330px;
+    font-size: 23px; line-height: 1.5; color: #E8F0F4; font-weight: 600;
+  }
+  .foot {
+    position: absolute; left: 46px; bottom: 34px;
+    font-size: 15px; color: #6F8593; letter-spacing: 2px;
+  }
+  .badge {
+    position: absolute; right: 44px; bottom: 34px;
+    font-size: 13px; color: #0A141C; background: #7ED8CB;
+    padding: 6px 12px; border-radius: 999px; font-weight: 700; letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <div class="beam"></div>
+  <div class="glow"></div>
+  <div class="rail r1"></div>
+  <div class="rail r2"></div>
+  <div class="rail r3"></div>
+
+  <!-- 剪影与游戏内同一套形状语言：方肩 + 收腰 + 尖顶 -->
+  <!--
+    画一道「裂隙」而不是一个人形：纯几何、与主题同源，也不会因为比例差一点
+    就变成瓶子或柱子。人形剪影交给游戏内的 figure() 去画，分享图不重复造。
+  -->
+  <svg class="fig" width="330" height="330" viewBox="0 0 330 330">
+    <defs>
+      <linearGradient id="riftIn" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#FFE7C4"/>
+        <stop offset="45%" stop-color="#F0A08C"/>
+        <stop offset="100%" stop-color="#8E3A31"/>
+      </linearGradient>
+      <linearGradient id="riftOut" x1="0" y1="1" x2="1" y2="0">
+        <stop offset="0%" stop-color="rgba(127,216,203,0.55)"/>
+        <stop offset="100%" stop-color="rgba(127,216,203,0)"/>
+      </linearGradient>
+    </defs>
+    <!-- 外圈：更宽的一道裂，颜色偏冷，给内芯让出层次 -->
+    <path d="M232 18 L198 96 L216 128 L176 214 L196 246 L150 330 L214 250 L190 214
+             L228 132 L208 100 L246 26 Z" fill="url(#riftOut)" opacity="0.55"/>
+    <!-- 内芯：窄、亮，边缘是折线而不是曲线——裂口不长成弧 -->
+    <path d="M236 22 L206 98 L222 126 L184 208 L202 240 L164 312 L196 244 L178 212
+             L214 130 L198 102 L232 28 Z" fill="url(#riftIn)"/>
+    <!-- 两粒火星：让裂口看起来在往外冒东西 -->
+    <circle cx="286" cy="124" r="3.2" fill="#FFD36B" opacity="0.9"/>
+    <circle cx="268" cy="222" r="2.2" fill="#FFD36B" opacity="0.65"/>
+  </svg>
+
+  <div class="tag" id="tag"></div>
+  <div class="big" id="big"></div>
+  <div class="sub" id="sub"></div>
+  <div class="line" id="line"></div>
+  <div class="foot">列车秘境 · 一局一条路线</div>
+  <div class="badge" id="badge"></div>
+</div>
+<script>
+  var CASES = {
+    cleared: {
+      tag: "抵达终点",
+      big: "列车秘境",
+      sub: "第 9 层 · 裂隙守住了",
+      line: "这趟车，我坐到了终点。",
+      badge: "通关"
+    },
+    failed: {
+      tag: "探索终止",
+      big: "列车秘境",
+      sub: "止步第 5 层",
+      line: "下一次，我会坐得更远。",
+      badge: "再来一局"
+    },
+    daily: {
+      tag: "今日挑战",
+      big: "同一条线路",
+      sub: "全服同一套限制条件",
+      line: "一样的车，看谁走得更远。",
+      badge: "每日挑战"
+    }
+  };
+  var key = (location.search.match(/c=([a-z]+)/) || [])[1] || "cleared";
+  var c = CASES[key] || CASES.cleared;
+  document.getElementById("tag").textContent = c.tag;
+  document.getElementById("big").textContent = c.big;
+  document.getElementById("sub").textContent = c.sub;
+  document.getElementById("line").textContent = c.line;
+  document.getElementById("badge").textContent = c.badge;
+</script>
+</body>
+</html>

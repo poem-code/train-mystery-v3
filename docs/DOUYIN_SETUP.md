@@ -222,3 +222,23 @@ start tools/preview.html         # 浏览器里真玩
 
 备案没下来之前，代码侧一切都能做完——这也是为什么工程里所有平台能力都做了降级：
 **没有 AppID 不是阻塞项，备案才是唯一的长周期依赖。**
+
+---
+
+## 分享图的路径形态（提审前真机确认一次）
+
+`tt.shareAppMessage({ imageUrl })` 现在传的是**包内相对路径**（`assets/share/*.png`）。
+浏览器与 Node 环境下这条路径没有任何问题，但真机上是否接受包内路径、
+还是必须走 `tt.getFileSystemManager().readFile` 转 base64 / 上传后拿 https 链接，
+需要在真机确认一次。
+
+三种做法的影响面：
+
+| 形态 | 改动 | 备注 |
+|---|---|---|
+| 包内相对路径（现状） | 无 | 最省事，若支持就保持 |
+| 本地绝对路径 | `platform.share` 里把相对路径拼成 `tt.env.USER_DATA_PATH` 下的文件 | 需要先把资源拷出去 |
+| 网络 https | 上传到 CDN，`config` 里配域名 | 需要域名与备案 |
+
+结论：**先按现状提审，真机验证失败再按表格换第二或第三种**。
+换的时候只动 `platform.share`，`text.share` 里的三张路径不动。

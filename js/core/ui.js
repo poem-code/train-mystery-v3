@@ -22,7 +22,68 @@ function beginFrame(screen, time) {
   state.time = time || 0;
 }
 
+/**
+ * 最小触控区：44×44（逻辑像素）。
+ *
+ * 界面是按 390 宽排的，小屏上 `screen.px()` 会把胶囊和返回键缩到 58×27 这种尺寸——
+ * 视觉上没问题，手指点不中。移动端的标准做法是**视觉不变、命中区外扩**：
+ * 玩家看到的还是那颗小胶囊，但手指偏一点也点得到。
+ *
+ * 两条约束，缺一个就会帮倒忙：
+ * 1. **不越出屏幕**：越界的命中区等于把点击送给屏幕外，看起来是「点了没反应」。
+ * 2. **不压住已经注册的其他命中区**：地图节点常比小胶囊先注册，
+ *    外扩如果吃掉节点的点击区，就是用一个 bug 换另一个 bug。重叠超过阈值就放弃外扩。
+ */
+var MIN_TOUCH = 44;
+var TOUCH_OVERLAP_LIMIT = 0.25;
+
+function overlapAreaRatio(a, b) {
+  if (!a || !b) return 0;
+  var x1 = Math.max(a.x, b.x);
+  var y1 = Math.max(a.y, b.y);
+  var x2 = Math.min(a.x + a.w, b.x + b.w);
+  var y2 = Math.min(a.y + a.h, b.y + b.h);
+  if (x2 <= x1 || y2 <= y1) return 0;
+  var inter = (x2 - x1) * (y2 - y1);
+  var area = b.w * b.h;
+  return area > 0 ? inter / area : 0;
+}
+
+function expandToMinTouch(rect) {
+  var w = Math.max(rect.w, MIN_TOUCH);
+  var h = Math.max(rect.h, MIN_TOUCH);
+  var x = rect.x + (rect.w - w) / 2;
+  var y = rect.y + (rect.h - h) / 2;
+  var screen = state.screen;
+  if (screen) {
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    if (x + w > screen.width) x = Math.max(0, screen.width - w);
+    if (y + h > screen.height) y = Math.max(0, screen.height - h);
+  }
+  return { x: x, y: y, w: w, h: h };
+}
+
 function pushHit(hit) {
+  var r = hit && hit.rect;
+  if (!r) {
+    state.hits.push(hit);
+    return;
+  }
+  if (r.w >= MIN_TOUCH && r.h >= MIN_TOUCH) {
+    state.hits.push(hit);
+    return;
+  }
+  var cand = expandToMinTouch(r);
+  var i;
+  for (i = 0; i < state.hits.length; i += 1) {
+    if (overlapAreaRatio(state.hits[i].rect, cand) > TOUCH_OVERLAP_LIMIT) {
+      // 有人（通常是地图节点）已经占着这块：宁可维持小命中区，也不抢别人的点击
+      state.hits.push(hit);
+      return;
+    }
+  }
+  hit.rect = cand;
   state.hits.push(hit);
 }
 

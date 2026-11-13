@@ -128,7 +128,9 @@ function onAction(action, state, app) {
     var data = state.current.modalData || {};
     var summary = data.summary || {};
     app.share({
-      title: summary.cleared ? text.share.cleared : text.share.failed.replace("%d", String((summary.layer || 0) + 1))
+      title: summary.cleared ? text.share.cleared : text.share.failed.replace("%d", String((summary.layer || 0) + 1)),
+      // 配图与文案同源：通关/阵亡各一张，玩家在会话里看到的图和他刚打出来的结果对得上
+      imageUrl: summary.cleared ? text.share.imageCleared : text.share.imageFailed
     });
     return true;
   }

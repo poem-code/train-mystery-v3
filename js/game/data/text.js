@@ -7,10 +7,20 @@ module.exports = {
   tagline: "一局一条路线，穿过裂隙",
   slogan: "分支路线 · 局内构筑 · 三资源压力",
 
+  /**
+   * 分享：标题 + 配图。
+   * 图是 `tools/share-card.html` 截出来的合成件（不是美术资产），
+   * 换图只改这里的路径，不用动逻辑；A2 立绘到位后直接把三张图替换掉。
+   * 尺寸 500×400（5:4），抖音分享卡的推荐比例。
+   */
   share: {
     title: "列车秘境：一局一条路线，穿过裂隙",
     cleared: "我打通了裂隙看守者，你来试试这条路线",
-    failed: "我在第 %d 层倒下了，你能走多远？"
+    failed: "我在第 %d 层倒下了，你能走多远？",
+    imageCleared: "assets/share/cleared.png",
+    imageFailed: "assets/share/failed.png",
+    imageDaily: "assets/share/daily.png",
+    daily: "今天的列车秘境是这套限制，来比比谁走得远"
   },
 
   home: {

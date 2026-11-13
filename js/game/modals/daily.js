@@ -10,6 +10,7 @@ var ui = require("../../core/ui");
 var common = require("../ui-common");
 var stateApi = require("../state");
 var config = require("../config");
+var text = require("../data/text");
 
 var P = draw.PALETTE;
 
@@ -100,14 +101,24 @@ function render(ctx, screen, state) {
     size: screen.fz(15)
   });
 
+  // 底部并排两枚：分享与返回同级。分享放在这里而不是标题旁，
+  // 是因为它是「准备开打之前」的自然动作（拉个人一起比），不是随时可点的工具。
+  var foot = screen.row({
+    x: panel.x + pad,
+    y: panel.y + panel.h - pad - screen.px(42),
+    w: panel.w - pad * 2,
+    h: screen.px(42)
+  }, 2, screen.px(8));
+  ui.button(ctx, {
+    id: "daily:share",
+    rect: foot[0],
+    label: "分享挑战",
+    style: "ghost",
+    size: screen.fz(13)
+  });
   ui.button(ctx, {
     id: "daily:close",
-    rect: {
-      x: panel.x + pad,
-      y: panel.y + panel.h - pad - screen.px(42),
-      w: panel.w - pad * 2,
-      h: screen.px(42)
-    },
+    rect: foot[1],
     label: "返回",
     style: "ghost",
     size: screen.fz(13)
@@ -121,6 +132,11 @@ function onAction(action, state, app) {
     state.current.modal = null;
     state.current.modalData = null;
     app.commit();
+    return true;
+  }
+
+  if (id === "daily:share") {
+    app.share({ title: text.share.daily, imageUrl: text.share.imageDaily });
     return true;
   }
 

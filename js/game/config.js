@@ -11,6 +11,18 @@ module.exports = {
   storageKey: "train-mystery-v3-save",
   legacyKeys: ["train-mystery-douyin-save-v2", "train-mystery-roguelike-save-v4"],
 
+  /* ---------- 诊断与预算 ---------- */
+  perf: {
+    /**
+     * 绘制指令计数（js/core/metrics.js）。默认开：一帧几百次调用多一层转发，
+     * 实测对 renderMs 无可见影响，换来的是「掉帧时能看出是不是画得太多」。
+     * 真机上若哪天这一层变贵了，置 false 即可整体关掉，渲染行为不变。
+     */
+    instrument: true,
+    /** 单帧光栅化调用预算（fill/stroke/文字/贴图），测试按它兜底 */
+    paintBudget: 400
+  },
+
   /* ---------- 激励视频 ------ */
   rewardedVideoAdUnitId: "REPLACE_WITH_YOUR_AD_UNIT_ID",
   adDailyLimit: 15,
