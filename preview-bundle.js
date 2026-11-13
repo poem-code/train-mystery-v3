@@ -1070,9 +1070,16 @@ var ui = require("./ui");
 var draw = require("./draw");
 var tween = require("./tween");
 var fxApi = require("./fx");
+var metricsApi = require("./metrics");
 
 function createEngine(options) {
-  var ctx = options.ctx;
+  /**
+   * 绘制指令计数：包一层 ctx，对场景/弹窗完全透明（它们拿到的还是同一个 ctx 接口）。
+   * `instrument: false` 可以整层关掉，计数退化为 0，渲染行为不变——
+   * 留在真机上哪天这层转发变贵时的退路。
+   */
+  var metrics = options.instrument === false ? null : metricsApi.instrument(options.ctx);
+  var ctx = metrics ? metrics.ctx : options.ctx;
   var canvas = options.canvas;
   var platform = options.platform;
   var screen = options.screen;
@@ -1093,7 +1100,7 @@ function createEngine(options) {
    * 帧统计：低端机上「卡不卡」需要能被量出来，而不是靠感觉。
    * 只做计数与最近一次的耗时，不参与渲染，也不占额外定时器。
    */
-  var perf = { frames: 0, slowFrames: 0, renderMs: 0, worstRenderMs: 0, sampleStart: 0, fps: 0, windowFrames: 0, paints: 0 };
+  var perf = { frames: 0, slowFrames: 0, renderMs: 0, worstRenderMs: 0, sampleStart: 0, fps: 0, windowFrames: 0, paints: 0, drawCalls: 0, worstDrawCalls: 0, drawPaints: 0 };
   var dirty = true;
   var lastFrameAt = 0;
   var elapsed = 0;
@@ -1161,6 +1168,7 @@ function createEngine(options) {
     var state = getState();
     elapsed += 1;
     perf.paints += 1;
+    if (metrics) metrics.reset();
     ui.beginFrame(screen, elapsed);
 
     var sceneId = getSceneId(state);
@@ -1206,6 +1214,14 @@ function createEngine(options) {
         align: "center",
         color: "#FFFFFF"
       });
+    }
+
+    // 计数放在 try 之外：渲染中途抛异常时，这一帧的指令数同样是真实发生的，
+    // 记下来才能看出「异常帧是不是画得比平时多」。
+    if (metrics) {
+      perf.drawCalls = metrics.calls();
+      perf.drawPaints = metrics.paints();
+      if (perf.drawCalls > perf.worstDrawCalls) perf.worstDrawCalls = perf.drawCalls;
     }
   }
 
@@ -1369,10 +1385,22 @@ function createEngine(options) {
     fx: fx,
     playSound: playSound,
     setAudio: function (next) { audio = next; },
-    /** 诊断用：最近一秒帧率、渲染耗时、慢帧数 */
+    /** 诊断用：最近一秒帧率、渲染耗时、慢帧数、单帧绘制指令数 */
     getPerf: function () {
       return "fps=" + perf.fps + " 渲染=" + perf.renderMs + "ms(最差 " + perf.worstRenderMs +
-        "ms) 帧数=" + perf.frames + " 慢帧=" + perf.slowFrames;
+        "ms) 绘制=" + perf.drawPaints + "/" + perf.drawCalls + "(最差 " + perf.worstDrawCalls +
+        ") 帧数=" + perf.frames + " 慢帧=" + perf.slowFrames;
+    },
+    /** 诊断用：上一帧的绘制指令数（测试用它给「不许画得更多」上闸） */
+    getDrawCalls: function () {
+      return perf.drawCalls;
+    },
+    /** 诊断用：上一帧里真正落像素的调用数（fill/stroke/文字/贴图） */
+    getDrawPaints: function () {
+      return perf.drawPaints;
+    },
+    getWorstDrawCalls: function () {
+      return perf.worstDrawCalls;
     },
     /** 诊断用：累计绘制次数（待机节流是否生效靠它量） */
     getPaintCount: function () {
@@ -1655,6 +1683,157 @@ module.exports = {
 
 });
 
+define("js/core/metrics.js", function(module, exports, require) {
+/**
+ * metrics.js —— 绘制指令计数
+ *
+ * 为什么需要：`perf` 已经有 fps 与 renderMs，但这两个数在真机上只能告诉你「慢」，
+ * 不能告诉你「为什么慢」。掉帧可能是指令太多，也可能是某一次 fill 的面积极大；
+ * 前者能靠减少指令修，后者只能改设计。没有指令计数，就只能等到真机上猜。
+ *
+ * 口径（写进测试，不要随手改）：**只数影响像素或路径的调用**——
+ *   fill / stroke / fillRect / strokeRect / fillText / strokeText / drawImage /
+ *   clearRect / clip，以及路径构造（beginPath / moveTo / lineTo / arc / arcTo /
+ *   ellipse / rect / quadraticCurveTo / bezierCurveTo / closePath）。
+ * save / restore / translate / rotate / scale / measureText 与属性赋值**不计**：
+ * 它们不改像素，计进去数字会随「怎么组织排版」漂移，而不是随「画了多少东西」。
+ * 注意 beginPath 计入是因为「开了几条独立路径」直接决定光栅化次数。
+ *
+ * 实现对上层完全透明：返回一个与 ctx 行为一致的包装对象，所有读写转发到真 ctx。
+ * 包装只在引擎创建时做一次；一帧几百次调用多一层 apply，实测对 renderMs 无可见影响
+ * （见 docs/ARCHITECTURE.md 的量法）。真机上如果哪天这一层变贵了，
+ * 把 `config.perf.instrument` 置 false 即可整体关掉，计数退化为 0，渲染行为不变。
+ */
+
+/** 计入指令数的方法 */
+var COUNTED = {
+  beginPath: true,
+  closePath: true,
+  moveTo: true,
+  lineTo: true,
+  arc: true,
+  arcTo: true,
+  ellipse: true,
+  rect: true,
+  quadraticCurveTo: true,
+  bezierCurveTo: true,
+  fill: true,
+  stroke: true,
+  fillRect: true,
+  strokeRect: true,
+  clearRect: true,
+  fillText: true,
+  strokeText: true,
+  drawImage: true,
+  clip: true
+};
+
+/**
+ * 真正落像素的那一小撮：fill / stroke / 文字 / 贴图。
+ * 路径构造（lineTo 之类）只改路径、不落像素，单独计——
+ * 「一帧画了多少段线」和「一帧提交了多少次绘制」是两种成本，
+ * 混成一个数会看不出瓶颈在哪（前者是 CPU 拼装，后者是光栅化与状态切换）。
+ */
+var PAINTED = {
+  fill: true,
+  stroke: true,
+  fillRect: true,
+  strokeRect: true,
+  fillText: true,
+  strokeText: true,
+  drawImage: true,
+  clearRect: true
+};
+
+/** 需要转发但**不计数**的方法 */
+var PASSTHROUGH = [
+  "save", "restore", "translate", "rotate", "scale", "transform", "setTransform",
+  "measureText", "createLinearGradient", "createRadialGradient", "createPattern",
+  "setLineDash", "getLineDash", "putImageData", "getImageData", "isPointInPath"
+];
+
+/** 需要转发的属性（读也要转发：低端机代码会回读 globalAlpha 做恢复） */
+var PROPS = [
+  "globalAlpha", "globalCompositeOperation", "fillStyle", "strokeStyle",
+  "lineWidth", "lineCap", "lineJoin", "miterLimit",
+  "font", "textAlign", "textBaseline", "direction",
+  "shadowBlur", "shadowColor", "shadowOffsetX", "shadowOffsetY",
+  "imageSmoothingEnabled", "canvas"
+];
+
+/**
+ * 包一层 ctx，返回 { ctx, calls, reset }。
+ * 用普通对象 + defineProperty 而不是 Proxy：小游戏环境不一定有 Proxy，
+ * 而且 Proxy 的读拦截比 getter 慢。
+ */
+function instrument(target) {
+  var api = {};
+  var state = { calls: 0, paints: 0 };
+  var i;
+
+  function bindCounted(name) {
+    var isPaint = PAINTED[name] === true;
+    api[name] = function () {
+      state.calls += 1;
+      if (isPaint) state.paints += 1;
+      return target[name].apply(target, arguments);
+    };
+  }
+
+  function bindPass(name) {
+    api[name] = function () {
+      return target[name].apply(target, arguments);
+    };
+  }
+
+  for (i = 0; i < PASSTHROUGH.length; i += 1) {
+    if (typeof target[PASSTHROUGH[i]] === "function") bindPass(PASSTHROUGH[i]);
+  }
+
+  var countedNames = [];
+  var k;
+  for (k in COUNTED) {
+    if (COUNTED.hasOwnProperty(k)) countedNames.push(k);
+  }
+  for (i = 0; i < countedNames.length; i += 1) {
+    if (typeof target[countedNames[i]] === "function") bindCounted(countedNames[i]);
+  }
+
+  for (i = 0; i < PROPS.length; i += 1) {
+    (function (name) {
+      Object.defineProperty(api, name, {
+        enumerable: true,
+        get: function () { return target[name]; },
+        set: function (value) { target[name] = value; }
+      });
+    })(PROPS[i]);
+  }
+
+  return {
+    ctx: api,
+    calls: function () { return state.calls; },
+    paints: function () { return state.paints; },
+    reset: function () { state.calls = 0; state.paints = 0; },
+    /** 目标对象上不存在的方法名（用于测试断言没有漏转发） */
+    missing: function (names) {
+      var out = [];
+      var j;
+      for (j = 0; j < names.length; j += 1) {
+        if (typeof target[names[j]] === "function" && !api[names[j]]) out.push(names[j]);
+      }
+      return out;
+    }
+  };
+}
+
+module.exports = {
+  instrument: instrument,
+  COUNTED: COUNTED,
+  PAINTED: PAINTED
+};
+
+});
+
 define("js/core/screen.js", function(module, exports, require) {
 /**
  * screen.js —— 逻辑分辨率 / 安全区 / 栅格（唯一坐标来源）
@@ -1909,7 +2088,68 @@ function beginFrame(screen, time) {
   state.time = time || 0;
 }
 
+/**
+ * 最小触控区：44×44（逻辑像素）。
+ *
+ * 界面是按 390 宽排的，小屏上 `screen.px()` 会把胶囊和返回键缩到 58×27 这种尺寸——
+ * 视觉上没问题，手指点不中。移动端的标准做法是**视觉不变、命中区外扩**：
+ * 玩家看到的还是那颗小胶囊，但手指偏一点也点得到。
+ *
+ * 两条约束，缺一个就会帮倒忙：
+ * 1. **不越出屏幕**：越界的命中区等于把点击送给屏幕外，看起来是「点了没反应」。
+ * 2. **不压住已经注册的其他命中区**：地图节点常比小胶囊先注册，
+ *    外扩如果吃掉节点的点击区，就是用一个 bug 换另一个 bug。重叠超过阈值就放弃外扩。
+ */
+var MIN_TOUCH = 44;
+var TOUCH_OVERLAP_LIMIT = 0.25;
+
+function overlapAreaRatio(a, b) {
+  if (!a || !b) return 0;
+  var x1 = Math.max(a.x, b.x);
+  var y1 = Math.max(a.y, b.y);
+  var x2 = Math.min(a.x + a.w, b.x + b.w);
+  var y2 = Math.min(a.y + a.h, b.y + b.h);
+  if (x2 <= x1 || y2 <= y1) return 0;
+  var inter = (x2 - x1) * (y2 - y1);
+  var area = b.w * b.h;
+  return area > 0 ? inter / area : 0;
+}
+
+function expandToMinTouch(rect) {
+  var w = Math.max(rect.w, MIN_TOUCH);
+  var h = Math.max(rect.h, MIN_TOUCH);
+  var x = rect.x + (rect.w - w) / 2;
+  var y = rect.y + (rect.h - h) / 2;
+  var screen = state.screen;
+  if (screen) {
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    if (x + w > screen.width) x = Math.max(0, screen.width - w);
+    if (y + h > screen.height) y = Math.max(0, screen.height - h);
+  }
+  return { x: x, y: y, w: w, h: h };
+}
+
 function pushHit(hit) {
+  var r = hit && hit.rect;
+  if (!r) {
+    state.hits.push(hit);
+    return;
+  }
+  if (r.w >= MIN_TOUCH && r.h >= MIN_TOUCH) {
+    state.hits.push(hit);
+    return;
+  }
+  var cand = expandToMinTouch(r);
+  var i;
+  for (i = 0; i < state.hits.length; i += 1) {
+    if (overlapAreaRatio(state.hits[i].rect, cand) > TOUCH_OVERLAP_LIMIT) {
+      // 有人（通常是地图节点）已经占着这块：宁可维持小命中区，也不抢别人的点击
+      state.hits.push(hit);
+      return;
+    }
+  }
+  hit.rect = cand;
   state.hits.push(hit);
 }
 
@@ -2146,6 +2386,18 @@ module.exports = {
   schemaVersion: 5,
   storageKey: "train-mystery-v3-save",
   legacyKeys: ["train-mystery-douyin-save-v2", "train-mystery-roguelike-save-v4"],
+
+  /* ---------- 诊断与预算 ---------- */
+  perf: {
+    /**
+     * 绘制指令计数（js/core/metrics.js）。默认开：一帧几百次调用多一层转发，
+     * 实测对 renderMs 无可见影响，换来的是「掉帧时能看出是不是画得太多」。
+     * 真机上若哪天这一层变贵了，置 false 即可整体关掉，渲染行为不变。
+     */
+    instrument: true,
+    /** 单帧光栅化调用预算（fill/stroke/文字/贴图），测试按它兜底 */
+    paintBudget: 400
+  },
 
   /* ---------- 激励视频 ------ */
   rewardedVideoAdUnitId: "REPLACE_WITH_YOUR_AD_UNIT_ID",
@@ -5390,10 +5642,20 @@ module.exports = {
   tagline: "一局一条路线，穿过裂隙",
   slogan: "分支路线 · 局内构筑 · 三资源压力",
 
+  /**
+   * 分享：标题 + 配图。
+   * 图是 `tools/share-card.html` 截出来的合成件（不是美术资产），
+   * 换图只改这里的路径，不用动逻辑；A2 立绘到位后直接把三张图替换掉。
+   * 尺寸 500×400（5:4），抖音分享卡的推荐比例。
+   */
   share: {
     title: "列车秘境：一局一条路线，穿过裂隙",
     cleared: "我打通了裂隙看守者，你来试试这条路线",
-    failed: "我在第 %d 层倒下了，你能走多远？"
+    failed: "我在第 %d 层倒下了，你能走多远？",
+    imageCleared: "assets/share/cleared.png",
+    imageFailed: "assets/share/failed.png",
+    imageDaily: "assets/share/daily.png",
+    daily: "今天的列车秘境是这套限制，来比比谁走得远"
   },
 
   home: {
@@ -7290,6 +7552,7 @@ var ui = require("../../core/ui");
 var common = require("../ui-common");
 var stateApi = require("../state");
 var config = require("../config");
+var text = require("../data/text");
 
 var P = draw.PALETTE;
 
@@ -7380,14 +7643,24 @@ function render(ctx, screen, state) {
     size: screen.fz(15)
   });
 
+  // 底部并排两枚：分享与返回同级。分享放在这里而不是标题旁，
+  // 是因为它是「准备开打之前」的自然动作（拉个人一起比），不是随时可点的工具。
+  var foot = screen.row({
+    x: panel.x + pad,
+    y: panel.y + panel.h - pad - screen.px(42),
+    w: panel.w - pad * 2,
+    h: screen.px(42)
+  }, 2, screen.px(8));
+  ui.button(ctx, {
+    id: "daily:share",
+    rect: foot[0],
+    label: "分享挑战",
+    style: "ghost",
+    size: screen.fz(13)
+  });
   ui.button(ctx, {
     id: "daily:close",
-    rect: {
-      x: panel.x + pad,
-      y: panel.y + panel.h - pad - screen.px(42),
-      w: panel.w - pad * 2,
-      h: screen.px(42)
-    },
+    rect: foot[1],
     label: "返回",
     style: "ghost",
     size: screen.fz(13)
@@ -7401,6 +7674,11 @@ function onAction(action, state, app) {
     state.current.modal = null;
     state.current.modalData = null;
     app.commit();
+    return true;
+  }
+
+  if (id === "daily:share") {
+    app.share({ title: text.share.daily, imageUrl: text.share.imageDaily });
     return true;
   }
 
@@ -8288,7 +8566,9 @@ function onAction(action, state, app) {
     var data = state.current.modalData || {};
     var summary = data.summary || {};
     app.share({
-      title: summary.cleared ? text.share.cleared : text.share.failed.replace("%d", String((summary.layer || 0) + 1))
+      title: summary.cleared ? text.share.cleared : text.share.failed.replace("%d", String((summary.layer || 0) + 1)),
+      // 配图与文案同源：通关/阵亡各一张，玩家在会话里看到的图和他刚打出来的结果对得上
+      imageUrl: summary.cleared ? text.share.imageCleared : text.share.imageFailed
     });
     return true;
   }
@@ -12562,6 +12842,7 @@ engine = createEngine({
   screen: screen,
   platform: platform,
   audio: audio,
+  instrument: !config.perf || config.perf.instrument !== false,
   isLiveView: isLiveView,
   scenes: registry.scenes,
   modals: registry.modals,
@@ -12602,6 +12883,7 @@ platform.onWindowResize(function (info) {
     screen: screen,
     platform: platform,
     audio: audio,
+    instrument: !config.perf || config.perf.instrument !== false,
     isLiveView: isLiveView,
     scenes: registry.scenes,
     modals: registry.modals,
